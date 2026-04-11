@@ -341,24 +341,27 @@ POST https://kairat679.app.n8n.cloud/webhook/jarvis-tts
 ```json
 {
   "success": true,
-  "filename": "jarvis-tts-2026-04-11T10-30-45.mp3",
-  "file_id": "1ABC...",
-  "web_view_link": "https://drive.google.com/file/d/1ABC.../view",
-  "web_content_link": "https://drive.google.com/uc?...",
-  "created_at": "2026-04-11T10:30:45Z"
+  "filename": "jarvis-tts-2026-04-11T18-11-58-040Z.mp3",
+  "public_url": "https://omykcphkzmmqpwswwfsw.supabase.co/storage/v1/object/public/jarvis-audio/jarvis-tts-2026-04-11T18-11-58-040Z.mp3",
+  "bucket": "jarvis-audio",
+  "created_at": "2026-04-11T18:12:02Z"
 }
 ```
 
 **Паттерн ответа пользователю после TTS**:
 ```
-🎙 Озвучил ответ голосом nova (12 сек, 1.2 MB)
-▶️ Слушать: [ссылка на Google Drive]
+🎙 Озвучил голосом nova
+▶️ [Слушать](public_url)
 ```
 
+Ссылка — прямая mp3, играет в любом браузере/мессенджере без открытия Drive.
+
 **Важно**:
-- Текст должен быть ≤ 4096 символов (если больше — разбивай на части)
-- Все аудио сохраняются в Google Drive папку `JARVIS/audio/`
-- Логируй генерацию аудио в jarvis_agent_logs (agent_id='tts')
+- Текст должен быть ≤ 4096 символов (если больше — разбивай на части, генерируй несколько файлов)
+- Все аудио сохраняются в Supabase Storage bucket `jarvis-audio` (public)
+- Public URL не истекает — можно делиться
+- Логируй генерацию аудио в jarvis_agent_logs (agent_id='tts', metadata с URL)
+- Для дайджестов и длинных текстов — используй `model: tts-1-hd` для лучшего качества
 
 ## Связанные репозитории (GitHub: kairat-jarvis organization)
 
