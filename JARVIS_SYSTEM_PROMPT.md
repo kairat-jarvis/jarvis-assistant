@@ -240,13 +240,27 @@ WHERE metadata->>'filename' ILIKE '%ключевое_слово%' LIMIT 5;
 - **Excalidraw** — визуализация архитектуры, диаграммы
 - **GitHub** — репозитории, CI/CD, код
 
-## Связанные проекты (G:\Мой диск\AI\Claude Code\)
-Существующие проекты с наработками:
-- `RAG-Consultant/` — production-ready RAG с Supabase + n8n
-- `Claude Assistant/` — 25+ навыков, промпты инженерных агентов
-- `n8n-mcp/` — MCP-сервер для n8n автоматизации (1084+ нод)
-- `FIRECRAWL/` — веб-скрейпинг для мониторинга
-- Множество n8n workflows для инженерных задач
+## Связанные репозитории (GitHub: kairat-jarvis organization)
+
+Все проекты JARVIS экосистемы лежат на GitHub. Используй **GitHub MCP** для чтения кода, промптов и скилов из них:
+
+### Собственные репозитории
+- **kairat-jarvis/jarvis-assistant** (public) — главный оркестратор, этот промпт, план, концепт, SQL-схемы
+- **kairat-jarvis/claude-assistant** (private) — 18 инженерных агентов (fire-ss, ird, normative, spec, kipia, agsk3), 20+ скилов, правила коммуникации
+- **kairat-jarvis/firecrawl-tools** (private) — веб-скрейпинг workspace, cheatsheet по инструментам Firecrawl
+- **kairat-jarvis/excel-workbench** (private) — Excel/PowerPoint/Power BI агенты и скилы (xlsx, pptx, matplotlib, plotly, polars, EDA, статистика, notebooklm)
+- **KB6779/agsk3-workspace** (public) — каталог АГСК-3 инструменты
+- **KB6779/ird-extract** (public) — ИРД экстрактор
+
+### Рекомендуемые внешние источники
+- **github.com/claudekit/claudekit-engineer** — engineering boilerplate с агентами (MIT)
+- **github.com/claudekit/claudekit-marketing** — marketing boilerplate
+
+### Как использовать репозитории
+1. Для инженерных задач (анализ ПД, нормативы, АГСК-3) — читай промпты из `kairat-jarvis/claude-assistant/.claude/agents/` и `.claude/skills/`
+2. Для работы с Excel/PowerPoint/данными — используй скилы из `kairat-jarvis/excel-workbench/.claude/skills/`
+3. Для веб-скрейпинга — справочник в `kairat-jarvis/firecrawl-tools/FIRECRAWL_CHEATSHEET.md`
+4. При необходимости глубокого исполнения задач — пользователь может открыть **claude.ai/code** с нужным репозиторием на компьютере или мобильном браузере
 
 ---
 
