@@ -1,0 +1,488 @@
+{
+  "name": "JARVIS Router",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "jarvis-telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 400],
+      "webhookId": "jarvis-router",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIALS_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =================================================================\n// JARVIS — Полная обработка входящего сообщения\n// Валидация + команды + маршрутизация в одной ноде\n// =================================================================\n\nconst update = $input.first().json;\nconst message = update.message || update;\n\n// Достаём текст из разных возможных мест\nconst text = message?.text || message?.message?.text || '';\n\nif (!text) {\n  return []; // Игнорируем не-текстовые\n}\n\nconst userMessage = text.trim();\n\n// Достаём chat info из разных возможных структур\nconst chatId = String(\n  message?.chat?.id ||\n  message?.message?.chat?.id ||\n  message?.from?.id ||\n  message?.message?.from?.id ||\n  ''\n);\n\nconst userId = String(\n  message?.from?.id ||\n  message?.message?.from?.id ||\n  ''\n);\n\nconst username =\n  message?.from?.username ||\n  message?.from?.first_name ||\n  message?.message?.from?.username ||\n  message?.message?.from?.first_name ||\n  'Unknown';\n\nconsole.log(`JARVIS: ${username} (chat:${chatId}): ${userMessage}`);\n\nif (!chatId) {\n  console.error('No chatId found in:', JSON.stringify(message).substring(0, 500));\n  return [];\n}\n\n// === /start ===\nif (userMessage === '/start') {\n  return [\n    {\n      json: {\n        route: 'command',\n        chatId: chatId,\n        text: '\\u{1F916} *JARVIS активирован*\\n\\n' +\n          'Я ваш персональный AI-оркестратор. Просто говорите — я пойму что делать.\\n\\n' +\n          '*Что я умею:*\\n' +\n          '\\u{1F4A1} Принимать идеи и оценивать их\\n' +\n          '\\u{1F4DD} Сохранять заметки и решения\\n' +\n          '\\u{1F50D} Отвечать на вопросы из базы знаний\\n' +\n          '\\u{1F4CB} Принимать задачи\\n\\n' +\n          '*Команды:*\\n' +\n          '/status — статистика памяти\\n' +\n          '/ideas — список идей\\n' +\n          '/help — справка\\n\\n' +\n          'Просто напишите что угодно!'\n      }\n    }\n  ];\n}\n\n// === /help ===\nif (userMessage === '/help') {\n  return [\n    {\n      json: {\n        route: 'command',\n        chatId: chatId,\n        text: '\\u{1F4D6} *JARVIS — Справка*\\n\\n' +\n          '*Типы сообщений (определяю автоматически):*\\n' +\n          '\\u{1F4A1} IDEA — идеи (оцениваю feasibility/impact)\\n' +\n          '\\u{1F4DD} NOTE — заметки и мысли\\n' +\n          '\\u{1F50D} QUERY — вопросы (ищу в базе знаний)\\n' +\n          '\\u{1F4CB} TASK — задачи\\n\\n' +\n          '*Примеры:*\\n' +\n          '• Идея — сделать калькулятор пожарной опасности\\n' +\n          '• Какие требования к СОУЭ 3 типа?\\n' +\n          '• Запиши — нужно обновить спецификацию\\n\\n' +\n          '*Команды:*\\n' +\n          '/status — статистика\\n' +\n          '/ideas — список идей\\n' +\n          '/help — эта справка'\n      }\n    }\n  ];\n}\n\n// === /status ===\nif (userMessage === '/status') {\n  return [\n    {\n      json: {\n        route: 'status',\n        chatId: chatId\n      }\n    }\n  ];\n}\n\n// === /ideas ===\nif (userMessage === '/ideas') {\n  return [\n    {\n      json: {\n        route: 'ideas',\n        chatId: chatId\n      }\n    }\n  ];\n}\n\n// === Обычное сообщение — на классификацию ===\nreturn [\n  {\n    json: {\n      route: 'classify',\n      userMessage: userMessage,\n      userId: userId,\n      username: username,\n      chatId: chatId\n    }\n  }\n];"
+      },
+      "id": "jarvis-router-code",
+      "name": "Router",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "command",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": "Command"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "status",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": "Status"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ideas",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": "Ideas"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "classify",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": "Classify"
+            }
+          ]
+        }
+      },
+      "id": "jarvis-switch",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "jarvis-send-command",
+      "name": "Send Command",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [980, 180],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIALS_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Запрос статистики из Supabase напрямую через Code ноду\nconst chatId = $json.chatId;\n\n// Возвращаем chatId для следующей ноды\n// Статистика будет получена через HTTP Request\nreturn [{ json: { chatId } }];"
+      },
+      "id": "jarvis-status-prep",
+      "name": "Status Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 350]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://omykcphkzmmqpwswwfsw.supabase.co/rest/v1/rpc/get_jarvis_stats",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "jarvis-get-stats",
+      "name": "Get Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 350],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_SUPABASE_HTTP_AUTH_ID",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $('Status Prep').first().json.chatId;\nconst stats = $input.all().map(i => i.json);\n\nlet text = '\\u{1F4CA} *JARVIS — Статистика памяти*\\n\\n';\n\nif (!stats || stats.length === 0 || (stats.length === 1 && !stats[0].content_type)) {\n  text += 'Память пуста. Начните общение!';\n} else {\n  let total = 0;\n  const emojis = {\n    'idea': '\\u{1F4A1}', 'task': '\\u{1F4CB}', 'note': '\\u{1F4DD}',\n    'query': '\\u{1F50D}', 'decision': '\\u2696\\uFE0F', 'context': '\\u{1F4CE}',\n    'agent_report': '\\u{1F916}', 'digest': '\\u{1F4F0}'\n  };\n  stats.forEach(s => {\n    if (s.content_type) {\n      const emoji = emojis[s.content_type] || '\\u{1F4C4}';\n      text += `${emoji} ${s.content_type}: ${s.count}\\n`;\n      total += parseInt(s.count || 0);\n    }\n  });\n  text += `\\n*Всего записей:* ${total}`;\n}\n\nreturn [{ json: { chatId: chatId, text: text } }];"
+      },
+      "id": "jarvis-format-stats",
+      "name": "Format Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1420, 350]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "jarvis-send-stats",
+      "name": "Send Stats",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1640, 350],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIALS_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $json.chatId;\nreturn [{ json: { chatId } }];"
+      },
+      "id": "jarvis-ideas-prep",
+      "name": "Ideas Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 530]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://omykcphkzmmqpwswwfsw.supabase.co/rest/v1/jarvis_memory?content_type=eq.idea&status=eq.active&order=created_at.desc&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "jarvis-get-ideas",
+      "name": "Get Ideas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 530],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_SUPABASE_HTTP_AUTH_ID",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $('Ideas Prep').first().json.chatId;\nconst ideas = $input.all().map(i => i.json);\n\nlet text = '\\u{1F4A1} *JARVIS — Банк идей*\\n\\n';\n\nif (!ideas || ideas.length === 0 || !ideas[0].id) {\n  text += 'Пока нет идей. Расскажите мне свою идею!';\n} else {\n  ideas.forEach((idea, idx) => {\n    const meta = idea.metadata || {};\n    const f = meta.feasibility_score ? `F:${meta.feasibility_score}` : '';\n    const im = meta.impact_score ? `I:${meta.impact_score}` : '';\n    const scores = (f || im) ? ` [${f} ${im}]` : '';\n    const date = new Date(idea.created_at).toLocaleDateString('ru-RU');\n    const summary = idea.summary || (idea.content || '').substring(0, 80);\n    text += `${idx + 1}. ${summary}${scores}\\n   _${date}_\\n\\n`;\n  });\n}\n\nreturn [{ json: { chatId: chatId, text: text } }];"
+      },
+      "id": "jarvis-format-ideas",
+      "name": "Format Ideas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1420, 530]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "jarvis-send-ideas",
+      "name": "Send Ideas",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1640, 530],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIALS_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1024,\n  \"system\": \"Ты — JARVIS, модуль классификации персонального AI-оркестратора.\\nПроанализируй сообщение и определи тип, приоритет, краткое описание и теги.\\n\\nКонтекст пользователя:\\n- Инженер пожарной безопасности (АПС/СОУЭ) в Казахстане\\n- Строит AI-автоматизацию инженерных процессов\\n- YouTube канал про AI + инженерию\\n- Готовит патент и NIW визу в США\\n\\nТипы:\\n- IDEA: идея для реализации\\n- TASK: конкретное действие\\n- QUERY: вопрос требующий ответа\\n- NOTE: заметка, мысль, решение\\n\\nДля IDEA оцени feasibility_score (1-10) и impact_score (1-10).\\n\\nОтветь ТОЛЬКО валидным JSON без markdown:\\n{\\n  \\\"type\\\": \\\"IDEA|TASK|NOTE|QUERY\\\",\\n  \\\"summary\\\": \\\"краткое описание\\\",\\n  \\\"priority\\\": \\\"critical|high|medium|low\\\",\\n  \\\"tags\\\": [\\\"tag1\\\"],\\n  \\\"feasibility_score\\\": null,\\n  \\\"impact_score\\\": null,\\n  \\\"evaluation_notes\\\": null\\n}\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"{{ $json.userMessage }}\"}]\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "jarvis-classifier",
+      "name": "Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [980, 720],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIALS_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =================================================================\n// JARVIS — Парсинг классификации + подготовка сохранения\n// =================================================================\n\nconst claudeText = $json.content?.[0]?.text || '{}';\nconst prev = $('Router').first().json;\n\nlet cls;\ntry {\n  cls = JSON.parse(claudeText);\n} catch (e) {\n  cls = { type: 'NOTE', summary: prev.userMessage.substring(0, 100), priority: 'medium', tags: ['unclassified'] };\n}\n\nconst contentType = (cls.type || 'NOTE').toLowerCase();\n\n// Эмодзи\nconst te = { 'IDEA': '\\u{1F4A1}', 'TASK': '\\u{1F4CB}', 'NOTE': '\\u{1F4DD}', 'QUERY': '\\u{1F50D}' };\nconst pe = { 'critical': '\\u{1F534}', 'high': '\\u{1F7E0}', 'medium': '\\u{1F7E1}', 'low': '\\u{1F7E2}' };\n\nlet text = `${te[cls.type] || '\\u{1F4C4}'} *${cls.type}* ${pe[cls.priority] || ''} ${cls.priority}\\n\\n`;\ntext += `\\u{1F4CC} ${cls.summary}\\n`;\nif (cls.tags && cls.tags.length) text += `\\u{1F3F7} ${cls.tags.join(', ')}\\n`;\n\nif (cls.type === 'IDEA' && cls.feasibility_score) {\n  text += `\\n\\u{1F4CA} *Оценка:*\\n`;\n  text += `  Реализуемость: ${cls.feasibility_score}/10\\n`;\n  text += `  Импакт: ${cls.impact_score}/10\\n`;\n  if (cls.evaluation_notes) text += `  ${cls.evaluation_notes}\\n`;\n}\n\ntext += `\\n\\u2705 Сохранено в память JARVIS`;\n\nconst metadata = {};\nif (cls.feasibility_score) metadata.feasibility_score = cls.feasibility_score;\nif (cls.impact_score) metadata.impact_score = cls.impact_score;\nif (cls.evaluation_notes) metadata.evaluation_notes = cls.evaluation_notes;\nmetadata.telegram_user_id = prev.userId;\nmetadata.telegram_username = prev.username;\n\nreturn [{\n  json: {\n    chatId: prev.chatId,\n    text: text,\n    // Для сохранения\n    content: prev.userMessage,\n    content_type: contentType,\n    summary: cls.summary || prev.userMessage.substring(0, 100),\n    tags: cls.tags || [],\n    source: 'telegram',\n    priority: cls.priority || 'medium',\n    status: 'active',\n    metadata: metadata,\n    classType: cls.type\n  }\n}];"
+      },
+      "id": "jarvis-parse",
+      "name": "Parse & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 720]
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {
+          "dimensions": 1536
+        }
+      },
+      "id": "jarvis-embed",
+      "name": "Embed",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [1420, 720],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_OPENAI_CREDENTIALS_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Объединяем данные из Parse и Embed\nconst parsed = $('Parse & Prepare').first().json;\nconst embedding = $json.embedding;\n\nreturn [{\n  json: {\n    ...parsed,\n    embedding: embedding\n  }\n}];"
+      },
+      "id": "jarvis-merge",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 720]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "jarvis-send-result",
+      "name": "Send Result",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1870, 620],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIALS_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "jarvis_memory",
+        "dataMode": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "content", "fieldValue": "={{ $json.content }}" },
+            { "fieldId": "content_type", "fieldValue": "={{ $json.content_type }}" },
+            { "fieldId": "summary", "fieldValue": "={{ $json.summary }}" },
+            { "fieldId": "tags", "fieldValue": "={{ JSON.stringify($json.tags) }}" },
+            { "fieldId": "embedding", "fieldValue": "={{ JSON.stringify($json.embedding) }}" },
+            { "fieldId": "source", "fieldValue": "={{ $json.source }}" },
+            { "fieldId": "priority", "fieldValue": "={{ $json.priority }}" },
+            { "fieldId": "status", "fieldValue": "={{ $json.status }}" },
+            { "fieldId": "metadata", "fieldValue": "={{ JSON.stringify($json.metadata) }}" }
+          ]
+        }
+      },
+      "id": "jarvis-save",
+      "name": "Save Memory",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1870, 820],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_SUPABASE_CREDENTIALS_ID",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "jarvis_agent_logs",
+        "dataMode": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "agent_id", "fieldValue": "classifier" },
+            { "fieldId": "action", "fieldValue": "classify_message" },
+            { "fieldId": "input_data", "fieldValue": "={{ JSON.stringify({ message: $json.content }) }}" },
+            { "fieldId": "output_data", "fieldValue": "={{ JSON.stringify({ type: $json.classType, summary: $json.summary }) }}" },
+            { "fieldId": "status", "fieldValue": "success" }
+          ]
+        }
+      },
+      "id": "jarvis-log",
+      "name": "Log Action",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2100, 820],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_SUPABASE_CREDENTIALS_ID",
+          "name": "Supabase API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Router", "type": "main", "index": 0 }]]
+    },
+    "Router": {
+      "main": [[{ "node": "Switch", "type": "main", "index": 0 }]]
+    },
+    "Switch": {
+      "main": [
+        [{ "node": "Send Command", "type": "main", "index": 0 }],
+        [{ "node": "Status Prep", "type": "main", "index": 0 }],
+        [{ "node": "Ideas Prep", "type": "main", "index": 0 }],
+        [{ "node": "Classify", "type": "main", "index": 0 }]
+      ]
+    },
+    "Status Prep": {
+      "main": [[{ "node": "Get Stats", "type": "main", "index": 0 }]]
+    },
+    "Get Stats": {
+      "main": [[{ "node": "Format Stats", "type": "main", "index": 0 }]]
+    },
+    "Format Stats": {
+      "main": [[{ "node": "Send Stats", "type": "main", "index": 0 }]]
+    },
+    "Ideas Prep": {
+      "main": [[{ "node": "Get Ideas", "type": "main", "index": 0 }]]
+    },
+    "Get Ideas": {
+      "main": [[{ "node": "Format Ideas", "type": "main", "index": 0 }]]
+    },
+    "Format Ideas": {
+      "main": [[{ "node": "Send Ideas", "type": "main", "index": 0 }]]
+    },
+    "Classify": {
+      "main": [[{ "node": "Parse & Prepare", "type": "main", "index": 0 }]]
+    },
+    "Parse & Prepare": {
+      "main": [[{ "node": "Embed", "type": "main", "index": 0 }]]
+    },
+    "Embed": {
+      "main": [[{ "node": "Merge Data", "type": "main", "index": 0 }]]
+    },
+    "Merge Data": {
+      "main": [[
+        { "node": "Send Result", "type": "main", "index": 0 },
+        { "node": "Save Memory", "type": "main", "index": 0 }
+      ]]
+    },
+    "Save Memory": {
+      "main": [[{ "node": "Log Action", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "JARVIS" }],
+  "triggerCount": 0,
+  "versionId": "2"
+}

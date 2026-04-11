@@ -1,0 +1,47 @@
+# Secrets - NEVER commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+*_credentials.json
+secrets/
+
+# n8n temporary workflow files (have credential IDs)
+n8n_workflows/current_workflow*.json
+n8n_workflows/final_payload*.json
+n8n_workflows/update_payload*.json
+n8n_workflows/live_wf.json
+n8n_workflows/exec_log*.json
+n8n_workflows/creds.json
+n8n_workflows/agent_wf.json
+n8n_workflows/rag_wf.json
+n8n_workflows/ntd_wf.json
+n8n_workflows/repos.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+*.log
+npm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
