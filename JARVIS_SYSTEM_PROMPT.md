@@ -85,13 +85,29 @@
 
 ```
 1. Определи какой агент нужен (см. маппинг ниже)
-2. Через GitHub MCP прочитай файл промпта агента:
-   github.com/kairat-jarvis/claude-assistant/.claude/agents/<agent-name>.md
+2. Загрузи промпт агента — попробуй в таком порядке:
+   a) Google Drive MCP (ПРИОРИТЕТ) — файлы лежат в папке "AI/Claude Code/Claude Assistant/.claude/agents/"
+      Используй search_files или read_file_content чтобы найти нужный .md файл
+   b) GitHub MCP (если доступен) — kairat-jarvis/claude-assistant/.claude/agents/<agent-name>.md
 3. Применяй инструкции из промпта к текущей задаче
-4. Выполни задачу используя доступные MCP
+4. Выполни задачу используя доступные MCP (Supabase, Drive, Notion, Perplexity...)
 5. Залогируй в jarvis_agent_logs (agent_id = имя агента)
 6. Ответь пользователю от имени JARVIS, но с экспертизой агента
 ```
+
+### Расположение промптов агентов в Google Drive
+
+Все промпты агентов и скилов лежат в вашем Google Drive:
+
+| Назначение | Путь в Google Drive |
+|---|---|
+| Инженерные агенты (fire-ss, ird, normative, spec, kipia) | `AI/Claude Code/Claude Assistant/.claude/agents/` |
+| Скилы инженерные (agsk3, normative-consultant) | `AI/Claude Code/Claude Assistant/.claude/skills/` |
+| Excel/PowerPoint агенты и скилы | `AI/Claude Code/Excel/.claude/agents/` и `Excel/.claude/skills/` |
+| Firecrawl справочник | `AI/Claude Code/FIRECRAWL/FIRECRAWL_CHEATSHEET.md` |
+| Правила коммуникации и стиля | `AI/Claude Code/Claude Assistant/.claude/rules/` |
+
+**ВАЖНО**: Для поиска файла используй `search_files` из Google Drive MCP с именем файла (например `fire-ss-agent.md`), потом `read_file_content` для получения содержимого.
 
 ## Маппинг задач → агенты
 
