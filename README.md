@@ -16,24 +16,43 @@
 ## Структура
 
 ```
-JARVIS ASSISTANT/
+jarvis-assistant/
 ├── CLAUDE.md                   # Главная инструкция проекта
 ├── JARVIS_SYSTEM_PROMPT.md     # Системный промпт для Claude Project
 ├── JARVIS_CONCEPT.md           # Детальный концепт (справочный)
 ├── JARVIS_TEST_PLAN.md         # План тестирования
 ├── scripts/
 │   └── setup_supabase.sql      # SQL-схема (применена)
-└── n8n_workflows/              # Экспортированные workflows
+├── n8n_workflows/              # Экспортированные workflows
+└── tools/                      # Реестр внешних инструментов
+    ├── REGISTRY.md             # Карта: какой инструмент когда использовать
+    ├── rag-consultant/TOOL.md
+    ├── claude-assistant/TOOL.md
+    ├── n8n-mcp/TOOL.md
+    ├── firecrawl-tools/TOOL.md
+    ├── agsk3-workspace/TOOL.md
+    └── ird-extract/TOOL.md
 ```
 
-## Связанные проекты
+## Модульная архитектура
 
-- `claude-assistant` — 25+ инженерных скилов и промптов
-- `rag-consultant` — RAG pipelines для НТД
-- `firecrawl-tools` — веб-скрейпинг
-- `n8n-mcp` — MCP сервер для n8n
-- `agsk3-workspace` — каталог АГСК-3
-- `ird-extract` — ИРД экстрактор
+Каждый инструмент — **отдельный репозиторий** в `github.com/kairat-jarvis`. В этом репо хранятся только
+**карточки инструментов** (`tools/<name>/TOOL.md`) — не сам код. JARVIS-оркестратор держит в контексте
+лёгкий реестр (`tools/REGISTRY.md`) и подгружает карточку конкретного инструмента только когда
+сработал триггер. Это экономит контекст и позволяет обновлять инструменты независимо.
+
+Подробнее — в [tools/REGISTRY.md](tools/REGISTRY.md).
+
+## Связанные репозитории
+
+| Репо | Домен |
+|---|---|
+| [`claude-assistant`](tools/claude-assistant/TOOL.md) | 25+ инженерных скилов и промптов |
+| [`rag-consultant`](tools/rag-consultant/TOOL.md) | RAG pipelines для НТД |
+| [`n8n-mcp`](tools/n8n-mcp/TOOL.md) | MCP сервер для n8n |
+| [`firecrawl-tools`](tools/firecrawl-tools/TOOL.md) | веб-скрейпинг |
+| [`agsk3-workspace`](tools/agsk3-workspace/TOOL.md) | каталог АГСК-3 |
+| [`ird-extract`](tools/ird-extract/TOOL.md) | ИРД экстрактор |
 
 ## Статус
 🟢 Фаза 0 — Фундамент (в процессе)
