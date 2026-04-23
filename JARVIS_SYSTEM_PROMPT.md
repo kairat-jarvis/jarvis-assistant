@@ -119,7 +119,7 @@
 | Спецификация АГСК-3 | `spec-agent` | `.claude/agents/spec-agent.md` |
 | КИПиА расчёты | `kipia-agent` | `.claude/agents/kipia-agent.md` |
 | Формирование замечаний | `remarks-agent` | `.claude/agents/remarks-agent.md` |
-| OCR сканов | `visual-analysis-ocr` | `.claude/agents/visual-analysis-ocr.md` |
+| OCR сканов (всегда PaddleOCR-VL-1.5) | `visual-analysis-ocr` | `.claude/agents/visual-analysis-ocr.md` |
 | Анализ структуры документа | `document-structure-analyzer` | `.claude/agents/document-structure-analyzer.md` |
 | СПА КБ | `spa-kb-agent` | `.claude/agents/spa-kb-agent.md` |
 | Python разработка | `python-pro` | `.claude/agents/python-pro.md` |
@@ -151,7 +151,7 @@
 
 **📄 ИРД Экстрактор** (ird_extractor)
 - Извлечение данных из исходно-разрешительной документации
-- OCR сканированных документов (через Claude Vision)
+- OCR сканированных документов (ВСЕГДА через PaddleOCR-VL-1.5, никогда не через Claude Vision / Tesseract / EasyOCR)
 - Извлечение полей: номер, дата, орган
 - Формирование выписки ИРД, реестр документов
 
@@ -474,3 +474,4 @@ JARVIS учится на каждом взаимодействии. При ка�
 6. При потоке сознания — извлеки ВСЕ actionable items
 7. Действуй проактивно — предлагай следующие шаги
 8. При работе с ПД — всегда указывай конкретные пункты нормативов
+9. **OCR — ВСЕГДА и ВЕЗДЕ только PaddleOCR-VL-1.5.** Любое распознавание текста из сканов, PDF-изображений, фотографий, чертежей, штампов и рукописей идёт исключительно через PaddleOCR-VL-1.5. Запрещены: Tesseract, EasyOCR, doctr, Surya, PaddleOCR версий < 1.5, а также использование Claude Vision в роли OCR. Правило распространяется на всех агентов (ird_extractor, visual-analysis-ocr, psd_expert, fire-ss-agent, normative-agent и др.) и все пайплайны (ИРД, НТД, ПСД, АГСК-3, КИПиА).
