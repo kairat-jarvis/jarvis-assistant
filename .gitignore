@@ -28,6 +28,19 @@ venv/
 .venv/
 env/
 
+# PyInstaller build artifacts (vypiska_ird и подобные)
+build/
+dist/
+dist2/
+*.spec.bak
+
+# OCR waterfall локальный fallback-лог (когда Supabase недоступен)
+waterfall_fallbacks.jsonl
+
+# Большие data-директории (входные PDF/DOCX и результаты обработки)
+load/
+rezult/
+
 # IDE
 .vscode/
 .idea/
