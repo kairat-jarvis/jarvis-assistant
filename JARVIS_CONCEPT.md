@@ -319,8 +319,11 @@ status: 60% ready (парсер + каталог есть, нужен pipeline)
 agent_id: ird_extractor
 description: Извлечение данных из исходно-разрешительной документации
 technology:
-  - pdfplumber для текстовых PDF
-  - PaddleOCR-VL-1.5 — единственный OCR-движок для сканов/изображений (ВСЕГДА и ВЕЗДЕ)
+  # Трёхуровневый waterfall извлечения текста (порядок обязателен):
+  # 1) pdfplumber → 2) PaddleOCR-VL-1.5 → 3) Claude Vision (fallback)
+  - pdfplumber — уровень 1: текстовые PDF с selectable text
+  - PaddleOCR-VL-1.5 — уровень 2: единственный OCR-движок для сканов/фото/PDF-изображений/чертежей
+  - Claude Vision — уровень 3: fallback, только если PaddleOCR-VL-1.5 не справился (рукопись, сложный layout, низкая уверенность)
   - Шаблоны выписок ИРД
 inputs:
   - Сканы/PDF документов ИРД
@@ -329,10 +332,11 @@ outputs:
   - Структурированная выписка ИРД
   - Excel/DOCX реестр документов
 capabilities:
-  - OCR сканированных документов через PaddleOCR-VL-1.5
+  - Извлечение текста по waterfall pdfplumber → PaddleOCR-VL-1.5 → Claude Vision
   - Извлечение ключевых полей (номер, дата, орган)
   - Формирование выписки по шаблону
   - Проверка полноты комплекта ИРД
+  - Логирование причины перехода на уровень 3 (Claude Vision) в jarvis_agent_logs
 n8n_workflow: JARVIS_IRD_Extractor
 status: 40% ready (базовый модуль есть)
 ```
@@ -1084,7 +1088,7 @@ JARVIS — персональный AI-оркестратор для автом�
 1. **Voice-first интерфейс**: Подключить Deepgram/Whisper для прямого голосового ввода через Telegram voice messages → STT → JARVIS → TTS → голосовой ответ
 2. **Дашборд**: React-приложение для визуализации состояния всех агентов, памяти, идей
 3. **Self-healing**: Агенты автоматически перезапускаются при ошибках, уведомляют о проблемах
-4. **Multi-modal input**: Фото чертежей → PaddleOCR-VL-1.5 (распознавание текста, штампов, экспликаций) + Claude Vision (визуальный анализ схемы) → итоговый анализ. OCR всегда только PaddleOCR-VL-1.5.
+4. **Multi-modal input**: Фото/скан/PDF чертежей → waterfall извлечения текста: (1) pdfplumber для текстовых PDF → (2) PaddleOCR-VL-1.5 для сканов и изображений → (3) Claude Vision как fallback, если PaddleOCR-VL-1.5 не справился. Claude Vision параллельно используется для визуального анализа схемы (компоненты, связи, символы), но не как OCR первого выбора.
 
 ### Среднесрочные (3-6 мес.)
 
