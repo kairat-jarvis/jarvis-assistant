@@ -35,6 +35,10 @@ JARVIS ASSISTANT/
 - `agsk3-workspace` — каталог АГСК-3
 - `ird-extract` — ИРД экстрактор
 
+## Ресурсы
+
+- [Claude Code quickstart (desktop tutorial)](https://docs.claude.com/en/docs/claude-code/quickstart)
+
 ## Статус
 🟢 Фаза 0 — Фундамент (в процессе)
 
