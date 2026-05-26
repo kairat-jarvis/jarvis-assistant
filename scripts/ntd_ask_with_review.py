@@ -154,7 +154,7 @@ def review_with_openai(question: str, analyst_answer: str, context: str) -> dict
                 for p in content
             )
         try:
-            return json.loads(content or "{}")
+            decoded = json.loads(content or "{}")
         except json.JSONDecodeError as e:
             return {
                 "verdict": "error",
@@ -162,6 +162,17 @@ def review_with_openai(question: str, analyst_answer: str, context: str) -> dict
                 "missed_norms": [],
                 "raw_text": (content or "")[:2000],
             }
+        # json_object mode иногда срывается: модель возвращает массив, строку
+        # или null. Downstream log_to_db ждёт dict и упадёт на .get() — мягко
+        # маппим всё не-dict в error с сохранением исходного payload.
+        if not isinstance(decoded, dict):
+            return {
+                "verdict": "error",
+                "rationale": f"reviewer returned non-object JSON ({type(decoded).__name__})",
+                "missed_norms": [],
+                "raw_text": (content or "")[:2000],
+            }
+        return decoded
     except Exception as e:
         return {"verdict": "error", "rationale": str(e), "missed_norms": []}
 
@@ -211,9 +222,13 @@ def log_to_db(
     else:
         missed = []
 
+    # psycopg.rows.Row наследует tuple — Json(Row) сериализует как массив
+    # значений без ключей и метаданные клозов теряются (downstream-скрипты
+    # ломаются на c.get("metadata")). Приводим к чистым dict.
+    context_payload = [dict(c) for c in (clauses or [])]
     row = {
         "question":          question,
-        "context_clauses":   Json(clauses or []),
+        "context_clauses":   Json(context_payload),
         "k_used":            k_used,
         "embed_model":       EMBED_MODEL,
         "analyst_model":     analyst_model,
@@ -272,8 +287,14 @@ def main() -> int:
     clauses = search_ntd(args.question, k=args.k)
     print(f"   найдено клозов: {len(clauses)}")
     ctx = format_context(clauses)
-    for ln in ctx.split("\n\n")[:3]:
-        print(f"   • {ln.splitlines()[0]}")
+    # При пустом clauses ctx="" → split("\n\n") даёт [""] → "".splitlines() == [],
+    # и [0] валится IndexError ДО проверки `if not clauses`. Превью имеет смысл
+    # только когда что-то нашлось — иначе всё равно дальше уйдём в retrieval-miss.
+    if clauses:
+        for ln in ctx.split("\n\n")[:3]:
+            lines = ln.splitlines()
+            if lines:
+                print(f"   • {lines[0]}")
 
     # Если поиск ничего не вернул — LLM звать бессмысленно: ответ заведомо
     # «нет данных в базе» (см. ANALYST_SYSTEM п.3). Экономим вызов и токены,

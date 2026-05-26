@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -39,6 +40,35 @@ VERDICT_OPTIONS = {
     "r": "rejected",
     "n": "need_more_evidence",
 }
+
+# Для gpt_was_right/both_wrong/split notes становится ground-truth target в SFT/DPO.
+# Без явной ссылки на норму (doc_code типа "СП 22.13330" / "СНиП 3.04.01-87" или
+# номер пункта "п.5.3.2"/"п. 5.3") модель учится отвечать без цитат — критик потом
+# не сможет валидировать ответ. Регэксп ищет хоть один из паттернов в notes.
+# Используем \b и обязательную цифру/токен после, чтобы не ловить ложные хвосты
+# вроде «проСТо» (часть слова) или «без СНа».
+_NOTES_CITATION_RE = re.compile(
+    r"(?:"
+    r"\bп\.?\s*\d+(?:\.\d+)*"               # п.5.3.2, п 5.3, п5
+    r"|\bпункт[еауы]?\s*\d+(?:\.\d+)*"     # пункт 5.3.2, пункта 7
+    r"|\bтаблиц[аеуы]\s*\d"                 # таблица 7.1, таблице 5
+    r"|\bприложени[еияю]\s*[А-ЯA-Z0-9]"     # приложение А, приложении 1
+    r"|\bСП\s*\d"                            # СП 22.13330
+    r"|\bСНиП\s*[\dА-ЯA-Z]"                 # СНиП 3.04.01-87
+    r"|\bСТ\s*РК\b"                          # СТ РК 1234
+    r"|\bСанПиН\b"                           # СанПиН 2.1.1
+    r"|\bГОСТ\b"                             # ГОСТ 12345, ГОСТ Р
+    r"|\bТР\s*ТС\s*\d"                       # ТР ТС 014
+    r"|\b(?:ЕНиР|ВСН|ВНТП|МДС|РСН)\b"       # ведомственные коды
+    r"|\bРД\s*\d"                            # РД 11-...
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _notes_has_citation(notes: str) -> bool:
+    """True если в тексте есть хотя бы одна ссылка на НТД/пункт."""
+    return bool(_NOTES_CITATION_RE.search(notes or ""))
 
 
 def open_conn():
@@ -217,10 +247,17 @@ def main() -> int:
         if notes_required:
             print("⚠ Для этого вердикта ОБЯЗАТЕЛЕН текстовый контр-ответ в notes")
             print("  (попадёт в SFT/DPO как ground truth). Пустая строка отменит запись.")
+            print("  Обязательна ссылка на норму: doc_code (СП/СНиП/ГОСТ/...) или п.<номер>.")
         print("Заметка (Enter — пусто):" if not notes_required else "Контр-ответ:")
         notes = input("> ").strip()
         if notes_required and not notes:
             print("✘ Пустые notes для этого вердикта запрещены. Отмена записи.")
+            return 1
+        if notes_required and not _notes_has_citation(notes):
+            # Без цитаты notes уходит в SFT как ответ без ссылок на НТД — обучаем
+            # модель «отвечать вообще». Блокируем до явного добавления doc_code/п.
+            print("✘ В контр-ответе нет ссылки на НТД (СП/СНиП/ГОСТ/п.<номер>/таблица/приложение).")
+            print("  Добавьте конкретную норму и повторите. Отмена записи.")
             return 1
 
         try:

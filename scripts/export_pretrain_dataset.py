@@ -136,6 +136,21 @@ def _ensure_confidence_marker(text: str, default: str = "medium") -> str:
     return f"{body}\nconfidence: {default}"
 
 
+_VALID_CONFIDENCE = {"high", "medium", "low"}
+
+
+def _resolved_confidence(row: dict) -> str:
+    """Какой уровень уверенности приклеить к target.
+
+    Берём `analyst_confidence` из строки журнала (там сохранён реальный уровень
+    из ответа Claude). Если его нет или он невалидный — fallback medium. Раньше
+    _ensure_confidence_marker всегда дописывал medium, и истинный сигнал
+    уверенности терялся в датасете.
+    """
+    raw = (row.get("analyst_confidence") or "").strip().lower()
+    return raw if raw in _VALID_CONFIDENCE else "medium"
+
+
 def winning_answer(row: dict) -> str | None:
     """Что считать «правильным» ответом для SFT.
 
@@ -144,9 +159,9 @@ def winning_answer(row: dict) -> str | None:
     использование как target учит модель писать ревью, а не отвечать по нормам.
     Если эксперт не записал контр-ответ — строка исключается из SFT.
 
-    Любой target проходит через _ensure_confidence_marker: ANALYST_SYSTEM
-    обязывает finish-line «confidence: ...», иначе обученная модель забудет
-    маркер и логирование сломается.
+    Любой target проходит через _ensure_confidence_marker(default=resolved):
+    ANALYST_SYSTEM обязывает finish-line «confidence: ...», и истинный уровень
+    из analyst_confidence сохраняется (раньше всегда переписывался на medium).
     """
     final = row.get("final_decision")
     notes = (row.get("expert_notes") or "").strip()
@@ -168,7 +183,7 @@ def winning_answer(row: dict) -> str | None:
         target = notes or None
     if not target:
         return None
-    return _ensure_confidence_marker(target)
+    return _ensure_confidence_marker(target, default=_resolved_confidence(row))
 
 
 def to_sft(rows: Iterable[dict]) -> Iterable[dict]:
@@ -223,9 +238,13 @@ def to_dpo(rows: Iterable[dict]) -> Iterable[dict]:
         prompt = f"[SYSTEM]\n{ANALYST_SYSTEM}\n\n[USER]\n{format_user_prompt(row)}"
         # Оба ответа в DPO-паре должны соответствовать тому же контракту
         # «confidence в конце», иначе модель выучит шаблон без маркера и сломает
-        # _extract_confidence() на инференсе.
-        chosen = _ensure_confidence_marker(notes)
-        rejected = _ensure_confidence_marker(analyst)
+        # _extract_confidence() на инференсе. default=_resolved_confidence(row)
+        # сохраняет реальный уровень аналитика: без него _ensure_confidence_marker
+        # удалял исходный маркер и переписывал на medium, сбивая сигнал высокой
+        # уверенности в rejected-примере (а в chosen — экспертный уровень).
+        confidence_default = _resolved_confidence(row)
+        chosen = _ensure_confidence_marker(notes, default=confidence_default)
+        rejected = _ensure_confidence_marker(analyst, default=confidence_default)
         yield {
             "prompt": prompt,
             "chosen": chosen,
