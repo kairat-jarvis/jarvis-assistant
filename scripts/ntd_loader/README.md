@@ -5,9 +5,14 @@
 
 ## Pipeline
 
+Тот же подход, что у `expertise-orchestrator/core/parsers/pdf.ts`: PDF
+целиком отдаём Claude PDF API (никаких pdfplumber/PaddleOCR — Claude сам
+извлекает текст).
+
 ```
 PDF
- └── vypiska_ird.ocr_waterfall.extract_pdf     (L1 pdfplumber → L2 PaddleOCR-VL-1.5 → L3 Claude Vision)
+ └── pdf_extract.extract_pdf                    (pypdf → чанки ≤40 стр./≤28 МБ →
+                                                 Claude PDF API document blocks)
       └── parser.parse_clauses                  (текст → клозы с clause_no/section_path)
            └── OpenAI text-embedding-3-small    (batched, 64 шт. на запрос)
                 └── pg_store.upsert_*           (ntd_documents + clause_vectors)
@@ -21,9 +26,9 @@ auto-memory `reference_ntd_local_vs_supabase.md`.
 
 Уже стоят в проекте:
 
-- `psycopg[binary]>=3.1`, `openai`, `pdfplumber`, `pdf2image`, `Pillow`
-- PaddleOCR-VL-1.5 — только если PDF содержит сканы (см. `OCR.md`)
-- `OPENAI_API_KEY` и (опционально) `NTD_PG_URL` в `.env`
+- `psycopg[binary]>=3.1`, `openai`, `anthropic`, `pypdf`
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` и (опционально) `NTD_PG_URL`, `CLAUDE_PDF_MODEL` в `.env`
+- Модель по умолчанию — `claude-sonnet-4-6` (override через env `CLAUDE_PDF_MODEL`)
 
 ## CLI
 
@@ -88,3 +93,5 @@ python -m scripts.ntd_loader --show <run_id>
    качества, передавайте `--doc-code` вручную.
 3. Год документа берётся как первый встретившийся 4-значный год — может быть неточным,
    проверяйте через `--show <run_id>`.
+4. Извлечение через Claude PDF API платное и идёт через сеть. Большие PDF режутся
+   по ≤40 страниц на чанк — каждый чанк = один API-запрос.

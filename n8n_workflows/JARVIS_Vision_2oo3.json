@@ -1,0 +1,313 @@
+{
+  "name": "JARVIS Vision 2oo3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jarvis-vision-2oo3",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "vision-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [-1800, 300],
+      "webhookId": "jarvis-vision-2oo3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====================================================\n// JARVIS Vision 2oo3 — Input Validation & Config\n// ====================================================\n// Принимает: { image_url: string, drawing_type?: string, prompt_hint?: string }\n// image_url — публичная ссылка на PNG/JPG чертежа (Google Drive / Supabase Storage)\n// drawing_type — plan|section|scheme|p&id|electrical|fire_safety (опционально)\n// prompt_hint — дополнительный контекст для Vision моделей\n\nconst body = $input.first().json.body || $input.first().json;\nconst image_url = body.image_url || body.url;\nconst drawing_type = body.drawing_type || 'architectural_plan';\nconst prompt_hint = body.prompt_hint || '';\n\nif (!image_url) {\n  throw new Error('Parameter \"image_url\" is required (public URL to drawing image)');\n}\n\n// Единая JSON-схема для всех трёх моделей — критично для voter\nconst EXTRACTION_SCHEMA = `{\n  \"drawing_type\": \"string — тип чертежа\",\n  \"scale\": \"string — масштаб (1:100, 1:50, ...) или null\",\n  \"title_block\": \"string — надпись основного штампа или null\",\n  \"elements\": [\n    {\n      \"type\": \"door|window|wall|column|stair|exit|fire_extinguisher|smoke_detector|sprinkler|hydrant|equipment|annotation|dimension|other\",\n      \"label\": \"string — текст метки/позиции или null\",\n      \"position_ref\": \"string — привязка к осям/координатам (А-1, Б-3, или x,y в % от изображения)\",\n      \"count\": \"number — количество одинаковых элементов в этом месте\",\n      \"confidence\": \"number 0..1\"\n    }\n  ],\n  \"text_annotations\": [\"string — весь видимый текст, тексты примечаний, ссылки на ГОСТ\"],\n  \"dimensions_mm\": [{ \"from\": \"A-1\", \"to\": \"A-2\", \"value_mm\": 6000 }],\n  \"notes\": \"string — общие замечания модели\"\n}`;\n\nconst SYSTEM_INSTRUCTION = `Ты — инженер-эксперт по чертежам. Анализируй изображение чертежа и возвращай СТРОГО JSON без markdown-обёртки, без пояснений, без \\`\\`\\`.\nСхема ответа:\n${EXTRACTION_SCHEMA}\n\nПравила:\n1. Возвращай ТОЛЬКО валидный JSON.\n2. Если не уверен — ставь confidence < 0.6.\n3. Для position_ref используй оси чертежа, если они видны; иначе — процентные координаты центра элемента (\"x:45%,y:60%\").\n4. Текст распознавай дословно, сохраняй регистр.\n5. Тип чертежа: ${drawing_type}.\n${prompt_hint ? `Дополнительно: ${prompt_hint}` : ''}`;\n\nreturn [{\n  json: {\n    image_url,\n    drawing_type,\n    prompt_hint,\n    SYSTEM_INSTRUCTION,\n    EXTRACTION_SCHEMA,\n    request_id: `vis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    started_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "vision-config",
+      "name": "Validate & Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1580, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.image_url }}",
+        "options": {
+          "response": { "response": { "responseFormat": "file" } },
+          "timeout": 60000
+        }
+      },
+      "id": "vision-download",
+      "name": "Download Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Извлекаем base64 из бинарного тела и mime\nconst cfg = $('Validate & Config').first().json;\nconst item = $input.first();\nconst bin = item.binary && item.binary.data;\nif (!bin || !bin.data) throw new Error('Image download returned no binary data');\nconst mime = bin.mimeType || 'image/png';\nconst base64 = bin.data; // n8n хранит base64-строку в binary.data.data\nreturn [{\n  json: { ...cfg, image_mime: mime, image_base64: base64 }\n}];"
+      },
+      "id": "vision-prepare",
+      "name": "Prepare Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"system_instruction\": { \"parts\": [{ \"text\": {{ JSON.stringify($json.SYSTEM_INSTRUCTION) }} }] },\n  \"contents\": [{\n    \"parts\": [\n      { \"inline_data\": { \"mime_type\": {{ JSON.stringify($json.image_mime) }}, \"data\": {{ JSON.stringify($json.image_base64) }} } },\n      { \"text\": \"Извлеки все элементы с чертежа согласно схеме. Верни только JSON.\" }\n    ]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"maxOutputTokens\": 4096,\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } },
+          "timeout": 90000
+        }
+      },
+      "id": "vision-gemini",
+      "name": "Gemini 2.5 Pro Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1340, 80],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_GEMINI",
+          "name": "Gemini API (x-goog-api-key header)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-opus-4-7\",\n  \"max_tokens\": 4096,\n  \"temperature\": 0.1,\n  \"system\": {{ JSON.stringify($json.SYSTEM_INSTRUCTION) }},\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": [\n      { \"type\": \"image\", \"source\": { \"type\": \"base64\", \"media_type\": {{ JSON.stringify($json.image_mime) }}, \"data\": {{ JSON.stringify($json.image_base64) }} } },\n      { \"type\": \"text\", \"text\": \"Извлеки все элементы с чертежа согласно схеме. Верни только JSON.\" }\n    ]\n  }]\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } },
+          "timeout": 90000
+        }
+      },
+      "id": "vision-claude",
+      "name": "Claude Opus Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1340, 300],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "Anthropic API (x-api-key header)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"pixtral-large-latest\",\n  \"temperature\": 0.1,\n  \"max_tokens\": 4096,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    { \"role\": \"system\", \"content\": {{ JSON.stringify($json.SYSTEM_INSTRUCTION) }} },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        { \"type\": \"text\", \"text\": \"Извлеки все элементы с чертежа согласно схеме. Верни только JSON.\" },\n        { \"type\": \"image_url\", \"image_url\": {{ JSON.stringify('data:' + $json.image_mime + ';base64,' + $json.image_base64) }} }\n      ]\n    }\n  ]\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } },
+          "timeout": 90000
+        }
+      },
+      "id": "vision-mistral",
+      "name": "Mistral Pixtral Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1340, 520],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "PLACEHOLDER_MISTRAL",
+          "name": "Mistral Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "id": "vision-merge",
+      "name": "Merge 3 Outputs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [-1020, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====================================================\n// Normalize — парсинг и приведение к единой схеме\n// ====================================================\n// Каждая модель возвращает JSON по-своему, извлекаем core text\n\nconst config = $('Validate & Config').first().json;\nconst gemini = $('Gemini 2.5 Pro Vision').first().json;\nconst claude = $('Claude Opus Vision').first().json;\nconst mistral = $('Mistral Pixtral Vision').first().json;\n\nfunction safeParse(txt) {\n  if (!txt) return null;\n  if (typeof txt === 'object') return txt;\n  // strip markdown fences if present\n  const cleaned = String(txt).replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\n  try { return JSON.parse(cleaned); } catch { return null; }\n}\n\nfunction extractGemini(r) {\n  if (!r || r.error) return { ok: false, error: r?.error?.message || 'no response', data: null };\n  const txt = r?.candidates?.[0]?.content?.parts?.[0]?.text;\n  const parsed = safeParse(txt);\n  return { ok: !!parsed, error: parsed ? null : 'parse_failed', data: parsed, raw_text: txt };\n}\n\nfunction extractClaude(r) {\n  if (!r || r.error || r.type === 'error') return { ok: false, error: r?.error?.message || 'no response', data: null };\n  const txt = r?.content?.[0]?.text;\n  const parsed = safeParse(txt);\n  return { ok: !!parsed, error: parsed ? null : 'parse_failed', data: parsed, raw_text: txt };\n}\n\nfunction extractMistral(r) {\n  if (!r || r.error) return { ok: false, error: r?.error?.message || 'no response', data: null };\n  const txt = r?.choices?.[0]?.message?.content;\n  const parsed = safeParse(txt);\n  return { ok: !!parsed, error: parsed ? null : 'parse_failed', data: parsed, raw_text: txt };\n}\n\nconst outputs = {\n  gemini: extractGemini(gemini),\n  claude: extractClaude(claude),\n  mistral: extractMistral(mistral)\n};\n\nconst okCount = Object.values(outputs).filter(o => o.ok).length;\n\nif (okCount === 0) {\n  throw new Error('All 3 Vision models failed. Errors: ' +\n    Object.entries(outputs).map(([k, v]) => `${k}=${v.error}`).join(' | '));\n}\n\nreturn [{\n  json: {\n    ...config,\n    outputs,\n    ok_count: okCount,\n    degraded: okCount < 3\n  }\n}];"
+      },
+      "id": "vision-normalize",
+      "name": "Normalize Outputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 6000,\n  \"temperature\": 0,\n  \"system\": \"Ты — арбитр 2oo3 (two-out-of-three voting), применяемый к выходам трёх Vision-моделей по чертежу. Твоя задача — семантически сравнить 3 JSON и собрать ИТОГОВЫЙ JSON по тому же схеме, где каждый элемент подтверждён минимум 2 из 3 моделей (или 1 из 1/2 при деградации, с пометкой).\\n\\nАЛГОРИТМ:\\n1. Сопоставь elements между моделями. Два элемента считаются одинаковыми, если совпадают: type + (label ИЛИ position_ref близка ±10% площади). Используй семантику, не строгое равенство.\\n2. Для каждого candidate-элемента определи уровень подтверждения: HIGH = 3/3, MEDIUM = 2/3, LOW = 1/3.\\n3. В финальный JSON включай HIGH и MEDIUM; LOW — в отдельный массив disputed с указанием, какая модель его видела.\\n4. Для text_annotations и dimensions_mm — то же 2oo3.\\n5. scale, drawing_type, title_block — majority vote, при tie — самый длинный/детальный.\\n6. Confidence итогового элемента: HIGH=0.95, MEDIUM=0.75, LOW=0.4, усреднённый с min(confidence) моделей.\\n\\nВЫХОД СТРОГО JSON (без markdown), структура:\\n{\\n  \\\"consensus\\\": { drawing_type, scale, title_block, elements[], text_annotations[], dimensions_mm[], notes },\\n  \\\"disputed\\\": [{ element, seen_by: [\\\"gemini\\\"|\\\"claude\\\"|\\\"mistral\\\"], reason }],\\n  \\\"voting_stats\\\": { total_candidates, high_agreement, medium_agreement, low_agreement, disagreement_rate },\\n  \\\"recommendation\\\": \\\"auto_approve|human_review|rerun\\\",\\n  \\\"reasoning\\\": \\\"кратко: где разошлись модели и почему\\\"\\n}\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": [{ \"type\": \"text\", \"text\": {{ JSON.stringify('Входные данные. ok_count=' + $json.ok_count + ', degraded=' + $json.degraded + '\\n\\nGEMINI (' + ($json.outputs.gemini.ok ? 'OK' : 'FAIL: ' + $json.outputs.gemini.error) + '):\\n' + JSON.stringify($json.outputs.gemini.data, null, 2) + '\\n\\nCLAUDE (' + ($json.outputs.claude.ok ? 'OK' : 'FAIL: ' + $json.outputs.claude.error) + '):\\n' + JSON.stringify($json.outputs.claude.data, null, 2) + '\\n\\nMISTRAL (' + ($json.outputs.mistral.ok ? 'OK' : 'FAIL: ' + $json.outputs.mistral.error) + '):\\n' + JSON.stringify($json.outputs.mistral.data, null, 2) + '\\n\\nПрименяй 2oo3. Если degraded=true — пометь recommendation=human_review.') }}]\n  }]\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } },
+          "timeout": 120000
+        }
+      },
+      "id": "vision-arbiter",
+      "name": "Claude Arbiter (2oo3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-560, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "Anthropic API (x-api-key header)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====================================================\n// Build final response + audit log payload\n// ====================================================\nconst arbiterResp = $input.first().json;\nconst normalized = $('Normalize Outputs').first().json;\n\nconst arbiterText = arbiterResp?.content?.[0]?.text || '';\nlet arbiterJson = null;\ntry {\n  arbiterJson = JSON.parse(arbiterText.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim());\n} catch (e) {\n  arbiterJson = { parse_error: e.message, raw: arbiterText };\n}\n\nconst result = {\n  request_id: normalized.request_id,\n  started_at: normalized.started_at,\n  finished_at: new Date().toISOString(),\n  image_url: normalized.image_url,\n  drawing_type: normalized.drawing_type,\n  ok_count: normalized.ok_count,\n  degraded: normalized.degraded,\n  model_status: {\n    gemini: normalized.outputs.gemini.ok ? 'ok' : 'fail',\n    claude: normalized.outputs.claude.ok ? 'ok' : 'fail',\n    mistral: normalized.outputs.mistral.ok ? 'ok' : 'fail'\n  },\n  arbiter: arbiterJson,\n  raw_outputs: {\n    gemini: normalized.outputs.gemini.data,\n    claude: normalized.outputs.claude.data,\n    mistral: normalized.outputs.mistral.data\n  }\n};\n\n// Log payload for jarvis_agent_logs (Supabase)\nconst log_payload = {\n  action: 'vision_2oo3',\n  request_id: result.request_id,\n  input: { image_url: result.image_url, drawing_type: result.drawing_type },\n  result: {\n    ok_count: result.ok_count,\n    degraded: result.degraded,\n    recommendation: arbiterJson?.recommendation || 'unknown',\n    voting_stats: arbiterJson?.voting_stats || null,\n    model_status: result.model_status\n  },\n  created_at: result.finished_at\n};\n\nreturn [{ json: { result, log_payload } }];"
+      },
+      "id": "vision-finalize",
+      "name": "Finalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://omykcphkzmmqpwswwfsw.supabase.co/rest/v1/jarvis_agent_logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.log_payload) }}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "id": "vision-log",
+      "name": "Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-100, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "uMhs5qLQoSQ3tuAf",
+          "name": "Supabase Storage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Finalize').first().json.result) }}"
+      },
+      "id": "vision-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate & Config", "type": "main", "index": 0 }]]
+    },
+    "Validate & Config": {
+      "main": [[{ "node": "Download Image", "type": "main", "index": 0 }]]
+    },
+    "Download Image": {
+      "main": [[{ "node": "Prepare Base64", "type": "main", "index": 0 }]]
+    },
+    "Prepare Base64": {
+      "main": [[
+        { "node": "Gemini 2.5 Pro Vision", "type": "main", "index": 0 },
+        { "node": "Claude Opus Vision", "type": "main", "index": 0 },
+        { "node": "Mistral Pixtral Vision", "type": "main", "index": 0 }
+      ]]
+    },
+    "Gemini 2.5 Pro Vision": {
+      "main": [[{ "node": "Merge 3 Outputs", "type": "main", "index": 0 }]]
+    },
+    "Claude Opus Vision": {
+      "main": [[{ "node": "Merge 3 Outputs", "type": "main", "index": 1 }]]
+    },
+    "Mistral Pixtral Vision": {
+      "main": [[{ "node": "Merge 3 Outputs", "type": "main", "index": 2 }]]
+    },
+    "Merge 3 Outputs": {
+      "main": [[{ "node": "Normalize Outputs", "type": "main", "index": 0 }]]
+    },
+    "Normalize Outputs": {
+      "main": [[{ "node": "Claude Arbiter (2oo3)", "type": "main", "index": 0 }]]
+    },
+    "Claude Arbiter (2oo3)": {
+      "main": [[{ "node": "Finalize", "type": "main", "index": 0 }]]
+    },
+    "Finalize": {
+      "main": [[{ "node": "Log to Supabase", "type": "main", "index": 0 }]]
+    },
+    "Log to Supabase": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "staticData": null,
+  "tags": [{ "name": "JARVIS" }, { "name": "Vision" }, { "name": "2oo3" }, { "name": "Expertise" }]
+}

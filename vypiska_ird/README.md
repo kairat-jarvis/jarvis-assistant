@@ -15,32 +15,26 @@
 4. Показать в таблице — инженер редактирует двойным кликом.
 5. Экспорт: DOCX (с таблицей под офиц. выписку) или XLSX.
 
-## Установка (Windows)
+## Установка (macOS)
 
-### 1. Python-зависимости
+### 1. Системные зависимости (Homebrew)
 
-```cmd
-cd vypiska_ird
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+```bash
+brew install poppler   # pdf2image — рендер PDF → PNG для OCR
 ```
 
-### 2. Системные бинари
+### 2. Python-зависимости
 
-| Компонент | Зачем | Откуда |
-|-----------|-------|--------|
-| Poppler | Рендер PDF → PNG для OCR | https://github.com/oschwartz10612/poppler-windows/releases/ |
-
-После установки либо добавить папку в `PATH`, либо задать переменную окружения:
-
-```cmd
-set POPPLER_PATH=C:\tools\poppler-24.08.0\Library\bin
+```bash
+cd vypiska_ird
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ### 3. PaddleOCR-VL-1.5 (tier 2, обязателен для сканов)
 
-```cmd
+```bash
 pip install "paddleocr>=3.1" paddlepaddle numpy
 ```
 
@@ -49,8 +43,8 @@ pip install "paddleocr>=3.1" paddlepaddle numpy
 Нужен только для сложных случаев: рукопись, повреждённые сканы, нестандартный layout.
 При отсутствии ключа приложение работает полностью offline — waterfall останавливается на tier 2.
 
-```cmd
-set ANTHROPIC_API_KEY=sk-ant-...
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 > **Документы ограниченного распространения:** запускайте без `ANTHROPIC_API_KEY` —
@@ -58,16 +52,26 @@ set ANTHROPIC_API_KEY=sk-ant-...
 
 ## Запуск
 
-```cmd
+```bash
 cd vypiska_ird
+source .venv/bin/activate
 python main.py
+```
+
+## Сборка .app (для распространения)
+
+```bash
+cd vypiska_ird
+bash build.sh
+# → dist/VypiskaIRD.app
+open dist/VypiskaIRD.app         # запустить
+cp -r dist/VypiskaIRD.app /Applications/   # установить
 ```
 
 ## Конфигурация (переменные окружения)
 
 | Переменная | По умолчанию | Смысл |
 |------------|-------------|-------|
-| `POPPLER_PATH` | — | Путь к папке с `pdftoppm.exe` |
 | `WATERFALL_MIN_TEXT_LEN` | `50` | Порог длины текста для признания страницы «не сканом» |
 | `PADDLE_CONF_THRESHOLD` | `0.6` | Минимальная уверенность PaddleOCR для принятия результата |
 | `PADDLE_LANG` | `ru` | Язык модели PaddleOCR |
@@ -80,6 +84,8 @@ python main.py
 vypiska_ird/
 ├── main.py                       # точка входа
 ├── requirements.txt
+├── build.sh                      # сборка macOS .app
+├── VypiskaIRD.spec               # PyInstaller spec (macOS bundle)
 ├── README.md
 └── ird_extract/
     ├── ocr_waterfall.py          # 3-tier waterfall: pdfplumber → PaddleOCR-VL → Claude Vision

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Realtime Ops — JARVIS Monitor</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2384CC16'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#000000; --bg-2:#0a0a0a; --bg-3:#171717;
+    --text:#FAFAFA; --text-2:#D4D4D4; --muted:#737373;
+    --border:#1F1F1F; --border-2:#404040;
+    --lime:#84CC16;       /* primary OK */
+    --magenta:#EC4899;    /* alert */
+    --amber:#F59E0B;      /* warn */
+    --cyan:#06B6D4;       /* info */
+    --red:#EF4444;        /* error */
+    --radius:10px;
+  }
+  html,body { height:100%; }
+  body {
+    font-family:'Inter',-apple-system,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono { font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums; }
+  .app { min-height:100vh; display:flex; flex-direction:column; }
+  header {
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+    padding:14px 24px; border-bottom:1px solid var(--border);
+    background:var(--bg); position:sticky; top:0; z-index:10;
+  }
+  h1 { font-size:14px; font-weight:600; letter-spacing:0.02em; display:flex; align-items:center; gap:10px; text-transform:uppercase; }
+  .pulse { width:10px; height:10px; border-radius:50%; background:var(--lime); box-shadow:0 0 0 0 var(--lime); animation:pulse 2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow:0 0 0 0 rgba(132,204,22,0.7); }
+    70%{ box-shadow:0 0 0 10px rgba(132,204,22,0); }
+    100%{ box-shadow:0 0 0 0 rgba(132,204,22,0); }
+  }
+  .status-bar { display:flex; gap:14px; align-items:center; font-size:12px; }
+  .stat-pill { padding:4px 10px; border:1px solid var(--border-2); border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px; }
+  .stat-pill.ok { color:var(--lime); border-color:var(--lime); }
+  .stat-pill.alert { color:var(--magenta); border-color:var(--magenta); }
+  main {
+    flex:1; padding:16px 24px; display:grid;
+    grid-template-columns:repeat(12, 1fr); grid-auto-rows:minmax(96px, auto); gap:12px;
+  }
+  .tile {
+    background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; display:flex; flex-direction:column; min-width:0;
+    transition:border-color 0.2s;
+  }
+  .tile:hover { border-color:var(--border-2); }
+  .tile.alert { border-color:var(--magenta); box-shadow:0 0 0 1px rgba(236,72,153,0.2); }
+  .tile-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .tile-title { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  .hero { grid-column:span 4; grid-row:span 2; }
+  .gauge-tile { grid-column:span 4; grid-row:span 2; }
+  .kpi { grid-column:span 2; }
+  .stream { grid-column:span 6; grid-row:span 3; min-height:280px; }
+  .log { grid-column:span 6; grid-row:span 3; min-height:280px; overflow:hidden; }
+  .footer-tile { grid-column:span 12; grid-row:span 2; min-height:200px; }
+  .kpi-value {
+    font-size:1.75rem; font-weight:600; letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums; margin:4px 0 2px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .hero .kpi-value { font-size:3rem; line-height:1; color:var(--lime); }
+  .delta { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; font-family:'JetBrains Mono',monospace; }
+  .delta.positive { color:var(--lime); }
+  .delta.negative { color:var(--red); }
+  .chart { flex:1; min-height:0; }
+  .log-list { font-family:'JetBrains Mono',monospace; font-size:12px; flex:1; overflow-y:auto; }
+  .log-row { padding:6px 0; border-bottom:1px solid var(--border); display:grid; grid-template-columns:auto auto auto 1fr; gap:12px; align-items:baseline; }
+  .log-row .ts { color:var(--muted); font-size:11px; }
+  .log-row .lvl { font-size:10px; padding:1px 6px; border-radius:3px; font-weight:600; }
+  .log-row .lvl.INFO  { background:rgba(6,182,212,0.15);  color:var(--cyan); }
+  .log-row .lvl.WARN  { background:rgba(245,158,11,0.15); color:var(--amber); }
+  .log-row .lvl.ERROR { background:rgba(239,68,68,0.15);  color:var(--red); }
+  .log-row .lvl.OK    { background:rgba(132,204,22,0.15); color:var(--lime); }
+  .log-row .src { color:var(--text-2); font-size:11px; }
+  .log-row .msg { color:var(--text); }
+  .grid-row { display:grid; grid-template-columns:1fr auto auto; gap:16px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .grid-row:last-child { border-bottom:0; }
+  .health-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .health-dot.ok { background:var(--lime); }
+  .health-dot.warn { background:var(--amber); }
+  .health-dot.err { background:var(--red); }
+  button:focus-visible { outline:2px solid var(--lime); outline-offset:2px; }
+  @media (max-width:1024px) {
+    main { grid-template-columns:repeat(6,1fr); }
+    .hero, .gauge-tile { grid-column:span 6; grid-row:span 2; }
+    .kpi { grid-column:span 3; }
+    .stream, .log, .footer-tile { grid-column:span 6; }
+  }
+  @media (max-width:640px) {
+    main { grid-template-columns:1fr; padding:12px; }
+    .hero, .gauge-tile, .kpi, .stream, .log, .footer-tile { grid-column:span 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+    .pulse { animation:none; }
+  }
+</style>
+</head>
+<body x-data="dash()" x-init="init()">
+<div class="app">
+  <header>
+    <h1><span class="pulse"></span> JARVIS · OPS MONITOR</h1>
+    <div class="status-bar">
+      <span class="stat-pill ok">● ONLINE</span>
+      <span class="stat-pill mono" x-text="'UP ' + uptime"></span>
+      <span class="stat-pill alert mono" x-text="alerts + ' ALERT' + (alerts===1?'':'S')"></span>
+      <span class="mono" style="color:var(--muted); font-size:11px;" x-text="now"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="tile hero">
+      <div class="tile-header"><span class="tile-title">REQUESTS / SEC</span><span class="mono" style="font-size:10px; color:var(--lime);">LIVE</span></div>
+      <div class="kpi-value mono" x-text="rps"></div>
+      <div><span class="delta positive">▲ +8.2%</span> <span style="color:var(--muted); font-size:10px;" class="mono">vs 1H AVG</span></div>
+      <div class="chart" id="chart-rps"></div>
+    </section>
+
+    <section class="tile gauge-tile">
+      <div class="tile-header"><span class="tile-title">SYSTEM HEALTH</span></div>
+      <div class="chart" id="chart-gauge"></div>
+    </section>
+
+    <section class="tile kpi">
+      <div class="tile-title">P50</div>
+      <div class="kpi-value" x-text="p50 + 'ms'"></div>
+      <div class="delta positive">▼ −4ms</div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">P99</div>
+      <div class="kpi-value" x-text="p99 + 'ms'" style="color:var(--amber);"></div>
+      <div class="delta negative">▲ +12ms</div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">ERR RATE</div>
+      <div class="kpi-value" style="color:var(--lime);">0.04%</div>
+      <div class="delta positive">▼ −0.02pp</div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">QUEUE</div>
+      <div class="kpi-value" x-text="queue"></div>
+      <div class="delta positive mono" style="color:var(--muted);">stable</div>
+    </section>
+
+    <section class="tile stream">
+      <div class="tile-header"><span class="tile-title">REQUESTS · 60S WINDOW</span><span class="mono" style="font-size:10px; color:var(--muted);" x-text="'WS · ' + (Math.random()*5+1).toFixed(1) + 'kb/s'"></span></div>
+      <div class="chart" id="chart-stream"></div>
+    </section>
+
+    <section class="tile log">
+      <div class="tile-header"><span class="tile-title">EVENT STREAM</span><span class="mono" style="font-size:10px; color:var(--muted);">tail -f</span></div>
+      <div class="log-list" id="log-list">
+        <template x-for="l in logs" :key="l.id">
+          <div class="log-row">
+            <span class="ts" x-text="l.ts"></span>
+            <span class="lvl" :class="l.lvl" x-text="l.lvl"></span>
+            <span class="src" x-text="l.src"></span>
+            <span class="msg" x-text="l.msg"></span>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <section class="tile footer-tile">
+      <div class="tile-header"><span class="tile-title">SERVICE HEALTH MATRIX</span></div>
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:0 32px;">
+        <template x-for="s in services.slice(0, Math.ceil(services.length/2))" :key="s.name">
+          <div class="grid-row">
+            <span><span class="health-dot" :class="s.cls"></span><span x-text="s.name"></span></span>
+            <span class="mono" style="color:var(--muted); font-size:11px;" x-text="s.uptime"></span>
+            <span class="mono" :style="`color: ${s.cls==='ok'?'var(--lime)':s.cls==='warn'?'var(--amber)':'var(--red)'}`" x-text="s.lat"></span>
+          </div>
+        </template>
+        <template x-for="s in services.slice(Math.ceil(services.length/2))" :key="s.name">
+          <div class="grid-row">
+            <span><span class="health-dot" :class="s.cls"></span><span x-text="s.name"></span></span>
+            <span class="mono" style="color:var(--muted); font-size:11px;" x-text="s.uptime"></span>
+            <span class="mono" :style="`color: ${s.cls==='ok'?'var(--lime)':s.cls==='warn'?'var(--amber)':'var(--red)'}`" x-text="s.lat"></span>
+          </div>
+        </template>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+function dash() { return {
+  rps:842, p50:42, p99:312, queue:18, alerts:2,
+  uptime:'14d 06:22', now:new Date().toLocaleTimeString('ru-RU'),
+  logs:[
+    {id:1, ts:'12:42:18', lvl:'OK',    src:'n8n.workflow',     msg:'JARVIS_AI_Monitor finished in 4.2s'},
+    {id:2, ts:'12:42:14', lvl:'INFO',  src:'supabase.edge',    msg:'match_jarvis_memory called (k=8)'},
+    {id:3, ts:'12:42:11', lvl:'WARN',  src:'paddleocr.queue',  msg:'Queue depth 24 — approaching limit 30'},
+    {id:4, ts:'12:42:08', lvl:'OK',    src:'tts.kokoro',       msg:'Synth 2.8s · ru-female-v1 · 18kb'},
+    {id:5, ts:'12:42:02', lvl:'ERROR', src:'firecrawl.scrape', msg:'Timeout after 30s on https://example.kz/...'},
+    {id:6, ts:'12:41:55', lvl:'INFO',  src:'notion.sync',      msg:'Synced 12 pages from Проекты Экспертиза'},
+    {id:7, ts:'12:41:48', lvl:'OK',    src:'supabase.rpc',     msg:'get_jarvis_stats — 142ms'},
+  ],
+  services:[
+    {name:'supabase.api',     uptime:'99.99%', lat:'42ms',  cls:'ok'},
+    {name:'n8n.workflows',    uptime:'99.95%', lat:'128ms', cls:'ok'},
+    {name:'paddleocr.queue',  uptime:'98.20%', lat:'2.4s',  cls:'warn'},
+    {name:'firecrawl.scrape', uptime:'95.10%', lat:'12s',   cls:'err'},
+    {name:'kokoro.tts',       uptime:'99.91%', lat:'2.8s',  cls:'ok'},
+    {name:'claude.api',       uptime:'99.99%', lat:'920ms', cls:'ok'},
+    {name:'gdrive.mcp',       uptime:'99.80%', lat:'380ms', cls:'ok'},
+    {name:'notion.mcp',       uptime:'99.70%', lat:'420ms', cls:'ok'},
+  ],
+  init() {
+    this.$nextTick(initCharts);
+    setInterval(()=> {
+      this.now = new Date().toLocaleTimeString('ru-RU');
+      this.rps = 800 + Math.floor(Math.random()*100);
+      this.p50 = 38 + Math.floor(Math.random()*8);
+      this.p99 = 290 + Math.floor(Math.random()*40);
+      this.queue = 15 + Math.floor(Math.random()*8);
+      pushPoint();
+    }, 2000);
+  }
+};}
+
+let streamChart, rpsChart;
+const streamData = Array.from({length:30}, (_,i)=>800 + Math.floor(Math.random()*100));
+const rpsData    = Array.from({length:20}, (_,i)=>800 + Math.floor(Math.random()*100));
+
+function pushPoint() {
+  streamData.shift(); streamData.push(800 + Math.floor(Math.random()*100));
+  rpsData.shift();    rpsData.push(800 + Math.floor(Math.random()*100));
+  if (streamChart) streamChart.setOption({series:[{data:streamData}]});
+  if (rpsChart)    rpsChart.setOption({series:[{data:rpsData}]});
+}
+
+function initCharts() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lime='#84CC16', muted='#737373', text='#D4D4D4';
+  const tooltip = {
+    backgroundColor:'rgba(10,10,10,0.95)', borderColor:'#404040', borderWidth:1,
+    textStyle:{color:'#FAFAFA', fontSize:12, fontFamily:"'JetBrains Mono',monospace"},
+    extraCssText:'border-radius:6px;'
+  };
+  const grid = {left:6, right:6, top:6, bottom:6, containLabel:false};
+  const axisHidden = {axisLine:{show:false}, axisTick:{show:false}, axisLabel:{show:false}, splitLine:{show:false}};
+
+  rpsChart = echarts.init(document.getElementById('chart-rps'));
+  rpsChart.setOption({
+    animation:!reduceMotion, animationDuration:300,
+    grid, xAxis:{type:'category', show:false, data:rpsData.map((_,i)=>i)},
+    yAxis:{type:'value', show:false, scale:true},
+    tooltip:{...tooltip, trigger:'axis'},
+    series:[{
+      type:'line', data:rpsData, smooth:true, symbol:'none',
+      lineStyle:{color:lime, width:2},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:lime+'AA'},{offset:1,color:lime+'00'}])}
+    }]
+  });
+  new ResizeObserver(()=>rpsChart.resize()).observe(document.getElementById('chart-rps'));
+
+  const gauge = echarts.init(document.getElementById('chart-gauge'));
+  gauge.setOption({
+    animation:!reduceMotion,
+    series:[{
+      type:'gauge', startAngle:200, endAngle:-20, min:0, max:100, radius:'95%',
+      progress:{show:true, width:14, itemStyle:{color:lime}},
+      axisLine:{lineStyle:{width:14, color:[[1,'rgba(255,255,255,0.06)']]}},
+      pointer:{show:false}, axisTick:{show:false}, splitLine:{show:false}, axisLabel:{show:false},
+      detail:{
+        valueAnimation:true, fontSize:42, fontWeight:600, color:'#FAFAFA',
+        offsetCenter:[0,'-5%'], formatter:'{value}', fontFamily:"'JetBrains Mono',monospace"
+      },
+      title:{offsetCenter:[0,'30%'], color:muted, fontSize:11, fontFamily:"'JetBrains Mono',monospace"},
+      data:[{value:94, name:'HEALTH SCORE'}]
+    }]
+  });
+  new ResizeObserver(()=>gauge.resize()).observe(document.getElementById('chart-gauge'));
+
+  streamChart = echarts.init(document.getElementById('chart-stream'));
+  const tooltipStream = {...tooltip, trigger:'axis'};
+  streamChart.setOption({
+    animation:!reduceMotion, animationDuration:300,
+    grid:{left:36, right:12, top:24, bottom:24, containLabel:false},
+    tooltip:tooltipStream,
+    xAxis:{type:'category', show:false, data:streamData.map((_,i)=>i)},
+    yAxis:{
+      type:'value', scale:true,
+      axisLine:{lineStyle:{color:muted, opacity:0.3}}, axisTick:{show:false},
+      axisLabel:{color:muted, fontSize:10, fontFamily:"'JetBrains Mono',monospace"},
+      splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}}
+    },
+    series:[{
+      type:'line', data:streamData, smooth:false, symbol:'none',
+      lineStyle:{color:lime, width:1.5},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:lime+'55'},{offset:1,color:lime+'00'}])}
+    }]
+  });
+  new ResizeObserver(()=>streamChart.resize()).observe(document.getElementById('chart-stream'));
+}
+</script>
+</body>
+</html>

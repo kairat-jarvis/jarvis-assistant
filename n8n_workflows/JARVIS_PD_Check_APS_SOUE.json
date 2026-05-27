@@ -1,0 +1,52 @@
+{
+  "name": "JARVIS — Проверка ПД АПС+СОУЭ",
+  "_meta": {
+    "n8n_workflow_id": "DBNRZoO27tfJicpL",
+    "n8n_project_id": "x4vJTbT8i66VUBIk",
+    "n8n_url": "https://kairat679.app.n8n.cloud/workflow/DBNRZoO27tfJicpL",
+    "webhook_production": "https://kairat679.app.n8n.cloud/webhook/pd-check-aps-soue",
+    "webhook_test": "https://kairat679.app.n8n.cloud/webhook-test/pd-check-aps-soue",
+    "models": {
+      "validators": "claude-sonnet-4-6",
+      "cross_pair": "claude-sonnet-4-6",
+      "synthesis": "claude-opus-4-7"
+    },
+    "created": "2026-04-25",
+    "purpose": "Pilot: per-section PD check workflow. Webhook receives PDF (via Google Drive file_id), parallel АПС+СОУЭ validation, cross-pair check, Opus synthesis, output to Google Sheets + Telegram + Supabase log.",
+    "expected_payload": {
+      "project_id": "school-001",
+      "project_name": "Школа №42 Алматы",
+      "drive_file_id": "1abcXYZ_drive_file_id",
+      "telegram_chat_id": "123456789"
+    },
+    "before_first_run": [
+      "1. Создать таблицу jarvis_pd_jobs в Supabase (схема — см. unified-fluttering-blum.md)",
+      "2. Создать Google Sheets документ 'JARVIS-PD-Findings' с листом 'Замечания' и заголовками: №, Раздел, Серьёзность, Лист/Стр, Пункт НТД, Описание замечания, Рекомендация, Проект, Project ID, Дата проверки",
+      "3. В ноде 'Append Findings to Excel' выбрать created документ из выпадающего списка (documentId.value пустой по умолчанию)",
+      "4. Загрузить тестовый PDF АПС+СОУЭ в Google Drive, скопировать file ID",
+      "5. POST на webhook_test с payload — для тестового прогона; на webhook_production — для реальных запусков"
+    ]
+  },
+  "nodes": "Полная JSON-структура нод хранится в n8n cloud. Используй get_workflow_details(workflowId='DBNRZoO27tfJicpL') для экспорта. Для импорта в другой инстанс — открой workflow в UI, кликни '...' → Download → импортируй JSON.",
+  "structure": {
+    "trigger": "Webhook POST /pd-check-aps-soue",
+    "pipeline": [
+      "Webhook → Set Project Meta",
+      "→ Download PDF from Drive (Google Drive)",
+      "→ [parallel] АПС Validator (Sonnet 4.6) + СОУЭ Validator (Sonnet 4.6)",
+      "→ Merge АПС+СОУЭ (combineByPosition)",
+      "→ Cross-Pair АПС-СОУЭ (Sonnet 4.6)",
+      "→ Final Synthesis (Opus 4.7)",
+      "→ Parse JSON to Rows (Code node)",
+      "→ [parallel] Append Findings to Excel + Telegram Push (executeOnce) + Log Job to Supabase (executeOnce)"
+    ]
+  },
+  "credentials_used": [
+    "Anthropic account (Anthropic API)",
+    "Google Drive account (OAuth2)",
+    "Google Sheets account (OAuth2)",
+    "Telegram account 6 (Bot Token)",
+    "Supabase account 2"
+  ],
+  "supabase_table_jarvis_pd_jobs_schema": "CREATE TABLE jarvis_pd_jobs (\n  id BIGSERIAL PRIMARY KEY,\n  created_at TIMESTAMPTZ DEFAULT now(),\n  project_id TEXT NOT NULL,\n  project_name TEXT,\n  sections_checked TEXT,\n  started_at TIMESTAMPTZ,\n  finished_at TIMESTAMPTZ,\n  total_findings INT DEFAULT 0,\n  critical_count INT DEFAULT 0,\n  substantial_count INT DEFAULT 0,\n  minor_count INT DEFAULT 0,\n  compliance_verdict TEXT,\n  executive_summary TEXT,\n  status TEXT DEFAULT 'pending'\n);"
+}

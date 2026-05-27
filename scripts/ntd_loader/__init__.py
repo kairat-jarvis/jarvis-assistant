@@ -1,7 +1,8 @@
 """ntd_loader — загрузчик НТД из PDF в локальный expertise_ntd с SQLite-журналом.
 
-Pipeline:
-  PDF → vypiska_ird.ocr_waterfall (L1 pdfplumber → L2 PaddleOCR-VL-1.5 → L3 Claude Vision)
+Pipeline (как у expertise-orchestrator/core/parsers/pdf.ts):
+  PDF → pdf_extract.extract_pdf
+        (pypdf чанкует ≤40 стр./≤28 МБ → Claude PDF API document blocks)
       → parser.parse_clauses
       → OpenAI text-embedding-3-small (batched)
       → pg_store.upsert_document + upsert_clauses → postgres expertise_ntd

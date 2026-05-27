@@ -28,7 +28,7 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,
+    argv_emulation=True,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
@@ -41,4 +41,15 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='VypiskaIRD',
+)
+app = BUNDLE(
+    coll,
+    name='VypiskaIRD.app',
+    icon=None,
+    bundle_identifier='kz.baikulov.vypiskaird',
+    info_plist={
+        'NSHighResolutionCapable': True,
+        'CFBundleVersion': '1.0.0',
+        'CFBundleShortVersionString': '1.0',
+    },
 )

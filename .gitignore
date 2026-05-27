@@ -8,6 +8,12 @@ credentials.json
 *_credentials.json
 secrets/
 
+# n8n workflow files with embedded credentials (never commit)
+n8n_workflows/JARVIS_AI_Monitor.json
+n8n_workflows/JARVIS_Notion_Sync.json
+n8n_workflows/JARVIS_YouTube_Monitor.json
+n8n_workflows/JARVIS_Weather.json
+
 # n8n temporary workflow files (have credential IDs)
 n8n_workflows/current_workflow*.json
 n8n_workflows/final_payload*.json
@@ -19,6 +25,16 @@ n8n_workflows/agent_wf.json
 n8n_workflows/rag_wf.json
 n8n_workflows/ntd_wf.json
 n8n_workflows/repos.json
+
+# Scripts with hardcoded credentials
+scripts/run_weather.py
+
+# Notion content exports (may contain page IDs / personal data)
+notion_content.txt
+notion_sb_kairat.txt
+
+# Virtual environments
+.venv-paddle/
 
 # Python
 __pycache__/
@@ -40,6 +56,9 @@ waterfall_fallbacks.jsonl
 # Большие data-директории (входные PDF/DOCX и результаты обработки)
 load/
 rezult/
+
+# Pre-training dataset экспорты из ntd.cross_validation_labeled
+out/
 
 # IDE
 .vscode/

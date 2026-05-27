@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project Portfolio — Claude Light</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='24' height='24' rx='6' fill='%23D97757'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg-primary:#faf9f5; --bg-secondary:#F5F4EF; --bg-card:#ffffff;
+    --text-primary:#141413; --text-secondary:#5c5c5a; --text-muted:#8c8c8a;
+    --accent:#D97757; --accent-soft:rgba(217,119,87,0.12); --accent-hover:#c4684a;
+    --border:#e5e4df; --border-light:#eeeee9;
+    --positive:#16a34a; --negative:#dc2626;
+    --shadow:0 1px 3px rgba(20,20,19,0.04); --shadow-hover:0 4px 12px rgba(20,20,19,0.08);
+    --radius:14px;
+  }
+  html,body { height:100%; }
+  body {
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    background:var(--bg-primary); color:var(--text-primary);
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .app { min-height:100vh; display:flex; flex-direction:column; }
+  header {
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+    padding:18px 28px; border-bottom:1px solid var(--border);
+    background:var(--bg-primary); position:sticky; top:0; z-index:10;
+  }
+  h1 { font-size:1.25rem; font-weight:600; letter-spacing:-0.02em; display:flex; align-items:center; gap:10px; }
+  .logo-dot { width:10px; height:10px; border-radius:50%; background:var(--accent); }
+  .filter-bar {
+    display:flex; gap:12px; align-items:center; padding:14px 28px;
+    border-bottom:1px solid var(--border-light); background:var(--bg-primary);
+    flex-wrap:wrap;
+  }
+  .segmented { display:inline-flex; background:var(--bg-secondary); border-radius:8px; padding:3px; }
+  .segmented button {
+    background:transparent; border:0; padding:6px 14px; border-radius:6px;
+    font-size:13px; color:var(--text-muted); cursor:pointer; font-family:inherit;
+    transition:color 0.15s;
+  }
+  .segmented button.active { background:var(--bg-card); color:var(--text-primary); box-shadow:var(--shadow); }
+  .segmented button:not(.active):hover { color:var(--text-primary); }
+  .spacer { flex:1; }
+  .btn {
+    background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border);
+    padding:8px 14px; border-radius:8px; font-size:13px; font-weight:500;
+    cursor:pointer; font-family:inherit; transition:all 0.15s;
+  }
+  .btn:hover { border-color:var(--text-muted); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.primary:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+  main {
+    flex:1; padding:24px 28px; display:grid;
+    grid-template-columns:repeat(12, 1fr); grid-auto-rows:minmax(120px, auto); gap:16px;
+  }
+  .tile {
+    background:var(--bg-card); border:1px solid var(--border-light); border-radius:var(--radius);
+    padding:20px; box-shadow:var(--shadow); transition:box-shadow 0.2s, transform 0.2s;
+    display:flex; flex-direction:column; min-width:0;
+  }
+  .tile:hover { box-shadow:var(--shadow-hover); }
+  .tile-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .tile-title { font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; font-weight:500; }
+  .tile-action { font-size:11px; color:var(--accent); cursor:pointer; }
+  .hero { grid-column:span 6; grid-row:span 2; background:linear-gradient(135deg, var(--bg-card) 0%, var(--accent-soft) 100%); }
+  .kpi { grid-column:span 3; }
+  .trend { grid-column:span 12; grid-row:span 2; min-height:280px; }
+  .table-tile { grid-column:span 5; grid-row:span 3; }
+  .secondary { grid-column:span 7; grid-row:span 3; min-height:340px; }
+  .kpi-value {
+    font-size:2rem; font-weight:600; letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums; margin:6px 0 4px;
+  }
+  .hero .kpi-value { font-size:3.5rem; line-height:1; }
+  .delta { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:500; }
+  .delta.positive { color:var(--positive); }
+  .delta.negative { color:var(--negative); }
+  .delta-muted { color:var(--text-muted); margin-left:6px; font-weight:400; }
+  .spark { flex:1; min-height:48px; margin-top:10px; }
+  .hero .spark { min-height:90px; }
+  .chart { flex:1; min-height:0; }
+  table.proj { width:100%; border-collapse:collapse; font-size:13px; }
+  table.proj th { text-align:left; font-weight:500; color:var(--text-muted); padding:8px 6px; border-bottom:1px solid var(--border-light); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+  table.proj td { padding:10px 6px; border-bottom:1px solid var(--border-light); }
+  table.proj tr:last-child td { border-bottom:0; }
+  table.proj tr:hover { background:var(--bg-secondary); cursor:pointer; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:500; }
+  .badge.green { background:#dcfce7; color:#166534; }
+  .badge.amber { background:#fef3c7; color:#92400e; }
+  .badge.red   { background:#fee2e2; color:#991b1b; }
+  .badge.gray  { background:var(--bg-secondary); color:var(--text-secondary); }
+  .progress { width:100%; height:6px; background:var(--bg-secondary); border-radius:3px; overflow:hidden; }
+  .progress-bar { height:100%; background:var(--accent); border-radius:3px; transition:width 0.4s; }
+  /* Slide-over sheet */
+  .sheet-bg { position:fixed; inset:0; background:rgba(20,20,19,0.3); z-index:40; }
+  .sheet {
+    position:fixed; top:0; right:0; height:100vh; width:min(440px, 92vw);
+    background:var(--bg-card); border-left:1px solid var(--border); z-index:50;
+    box-shadow:-8px 0 32px rgba(20,20,19,0.12); padding:24px;
+    display:flex; flex-direction:column; gap:14px; overflow-y:auto;
+  }
+  .sheet h3 { font-size:1.1rem; font-weight:600; }
+  .sheet-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+  .sheet-row span:first-child { color:var(--text-muted); }
+  /* Focus & a11y */
+  button:focus-visible, .tile:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  /* Mobile */
+  @media (max-width:1024px) {
+    main { grid-template-columns:repeat(6, 1fr); }
+    .hero, .trend, .table-tile, .secondary { grid-column:span 6; }
+    .kpi { grid-column:span 3; }
+  }
+  @media (max-width:640px) {
+    header, .filter-bar, main { padding-left:16px; padding-right:16px; }
+    main { grid-template-columns:1fr; }
+    .hero, .trend, .table-tile, .secondary, .kpi { grid-column:span 1; }
+    .hero { grid-row:span 1; }
+    .hero .kpi-value { font-size:2.5rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+  }
+</style>
+</head>
+<body x-data="dash()">
+<div class="app">
+  <header>
+    <h1><span class="logo-dot"></span> Портфель проектов</h1>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span style="font-size:12px; color:var(--text-muted);" x-text="'Обновлено: ' + lastUpdate"></span>
+      <button class="btn">Экспорт</button>
+      <button class="btn primary">+ Проект</button>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <div class="segmented" role="tablist" aria-label="Период">
+      <template x-for="p in periods" :key="p">
+        <button :class="{active: period===p}" @click="setPeriod(p)" :aria-selected="period===p" x-text="p"></button>
+      </template>
+    </div>
+    <div class="spacer"></div>
+    <select class="btn"><option>Все филиалы</option><option>Астана</option><option>Алматы</option></select>
+    <select class="btn"><option>Все статусы</option><option>В работе</option><option>Завершён</option></select>
+  </div>
+
+  <main>
+    <!-- Hero -->
+    <section class="tile hero" aria-labelledby="hero-title">
+      <div class="tile-header"><span class="tile-title" id="hero-title">Активная стоимость</span></div>
+      <div class="kpi-value">₸ <span x-text="fmt(kpi.revenue)"></span></div>
+      <div>
+        <span class="delta positive">↑ +12.4%</span>
+        <span class="delta-muted">vs прошлый месяц</span>
+      </div>
+      <div class="spark" id="spark-hero" role="img" aria-label="Тренд за 30 дней — рост"></div>
+    </section>
+
+    <!-- KPIs -->
+    <section class="tile kpi">
+      <div class="tile-title">Активные проекты</div>
+      <div class="kpi-value" x-text="kpi.projects"></div>
+      <div class="delta positive">↑ +3 <span class="delta-muted">за неделю</span></div>
+      <div class="spark" id="spark-1"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Просроченные</div>
+      <div class="kpi-value" x-text="kpi.overdue" style="color:var(--negative);"></div>
+      <div class="delta negative">↑ +2 <span class="delta-muted">критично</span></div>
+      <div class="spark" id="spark-2"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Завершено в срок</div>
+      <div class="kpi-value"><span x-text="kpi.onTime"></span><span style="font-size:1rem; color:var(--text-muted);">%</span></div>
+      <div class="delta positive">↑ +5.2%</div>
+      <div class="spark" id="spark-3"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Средний срок</div>
+      <div class="kpi-value"><span x-text="kpi.avgDays"></span><span style="font-size:1rem; color:var(--text-muted);"> д</span></div>
+      <div class="delta positive">↓ −1.8 д</div>
+      <div class="spark" id="spark-4"></div>
+    </section>
+
+    <!-- Trend -->
+    <section class="tile trend">
+      <div class="tile-header">
+        <span class="tile-title">Динамика активных проектов и завершённых</span>
+        <span class="tile-action">Подробнее →</span>
+      </div>
+      <div class="chart" id="chart-trend"></div>
+    </section>
+
+    <!-- Table -->
+    <section class="tile table-tile">
+      <div class="tile-header"><span class="tile-title">Топ проектов</span></div>
+      <table class="proj">
+        <thead><tr><th>Проект</th><th>Статус</th><th style="text-align:right;">Прогресс</th></tr></thead>
+        <tbody>
+          <template x-for="p in projects" :key="p.id">
+            <tr @click="openSheet(p)">
+              <td>
+                <div style="font-weight:500;" x-text="p.name"></div>
+                <div style="font-size:11px; color:var(--text-muted);" x-text="p.client"></div>
+              </td>
+              <td><span class="badge" :class="p.statusColor" x-text="p.status"></span></td>
+              <td style="min-width:120px;">
+                <div style="display:flex; justify-content:flex-end; gap:8px; align-items:center;">
+                  <span style="font-size:12px; font-variant-numeric:tabular-nums;" x-text="p.progress + '%'"></span>
+                  <div class="progress" style="width:60px;"><div class="progress-bar" :style="`width:${p.progress}%`"></div></div>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Secondary chart -->
+    <section class="tile secondary">
+      <div class="tile-header"><span class="tile-title">Распределение по типам экспертизы</span></div>
+      <div class="chart" id="chart-donut"></div>
+    </section>
+  </main>
+</div>
+
+<!-- Slide-over sheet -->
+<template x-if="selected">
+  <div>
+    <div class="sheet-bg" @click="selected=null"></div>
+    <aside class="sheet" role="dialog" :aria-label="'Детали: ' + selected.name">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 x-text="selected.name"></h3>
+        <button class="btn" @click="selected=null" aria-label="Закрыть">×</button>
+      </div>
+      <div class="sheet-row"><span>Клиент</span><span x-text="selected.client"></span></div>
+      <div class="sheet-row"><span>Статус</span><span class="badge" :class="selected.statusColor" x-text="selected.status"></span></div>
+      <div class="sheet-row"><span>Прогресс</span><span x-text="selected.progress + '%'"></span></div>
+      <div class="sheet-row"><span>Бюджет</span><span x-text="'₸ ' + fmt(selected.budget)"></span></div>
+      <div class="sheet-row"><span>Срок</span><span x-text="selected.deadline"></span></div>
+    </aside>
+  </div>
+</template>
+
+<script>
+function dash() { return {
+  period:'30д', periods:['7д','30д','90д','1г','Всё'],
+  lastUpdate: new Date().toLocaleString('ru-RU'),
+  selected:null,
+  kpi:{ revenue:284_500_000, projects:24, overdue:5, onTime:87, avgDays:42 },
+  projects:[
+    { id:1, name:'ЖК «Караван»',     client:'KazInvest',  status:'В работе',  statusColor:'green', progress:78, budget:120_000_000, deadline:'2026-06-15' },
+    { id:2, name:'ТРЦ Mega Astana',   client:'Mega Group', status:'Просрочен', statusColor:'red',   progress:45, budget:340_000_000, deadline:'2026-04-20' },
+    { id:3, name:'Школа №42',         client:'Акимат',     status:'В работе',  statusColor:'green', progress:62, budget:85_000_000,  deadline:'2026-08-01' },
+    { id:4, name:'АЗС «Сапа» (15 ш)', client:'Sapa Group', status:'Согласован',statusColor:'amber', progress:30, budget:65_000_000,  deadline:'2026-09-30' },
+    { id:5, name:'Поликлиника Семей', client:'Минздрав',   status:'В работе',  statusColor:'green', progress:88, budget:210_000_000, deadline:'2026-05-10' },
+    { id:6, name:'Логопарк Алматы',   client:'KTZ Express',status:'Завершён',  statusColor:'gray',  progress:100,budget:175_000_000, deadline:'2026-04-01' },
+  ],
+  setPeriod(p){ this.period=p; /* re-render charts here in real app */ },
+  openSheet(p){ this.selected=p; },
+  fmt(n){ return new Intl.NumberFormat('ru-RU').format(n); },
+  init(){ this.$nextTick(() => initCharts()); }
+};}
+
+function initCharts() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const accent = '#D97757', muted = '#8c8c8a', text = '#141413';
+  const tooltip = {
+    backgroundColor:'rgba(255,255,255,0.98)', borderColor:'#e5e4df', borderWidth:1,
+    textStyle:{color:text, fontSize:12}, extraCssText:'box-shadow:0 4px 12px rgba(20,20,19,0.08); border-radius:8px;'
+  };
+  const grid = { left:8, right:8, top:24, bottom:24, containLabel:true };
+  const axis = {
+    axisLine:{lineStyle:{color:muted, opacity:0.2}}, axisTick:{show:false},
+    axisLabel:{color:muted, fontSize:11}, splitLine:{lineStyle:{color:'rgba(0,0,0,0.04)'}}
+  };
+
+  function spark(id, data, color=accent) {
+    const c = echarts.init(document.getElementById(id), null, {renderer:'canvas'});
+    c.setOption({
+      animation:!reduceMotion, animationDuration:600,
+      grid:{left:0,right:0,top:0,bottom:0},
+      xAxis:{type:'category', show:false, data:data.map((_,i)=>i)},
+      yAxis:{type:'value', show:false, scale:true},
+      tooltip:{...tooltip, trigger:'axis', formatter:(p)=>`<b>${p[0].value}</b>`},
+      series:[{
+        type:'line', data, smooth:true, symbol:'none',
+        lineStyle:{color, width:2},
+        areaStyle:{color: new echarts.graphic.LinearGradient(0,0,0,1,[
+          {offset:0, color: color+'66'}, {offset:1, color: color+'00'}
+        ])}
+      }]
+    });
+    new ResizeObserver(()=>c.resize()).observe(document.getElementById(id));
+  }
+
+  spark('spark-hero', [180,195,210,200,225,240,235,250,265,280,275,284], accent);
+  spark('spark-1', [18,19,20,21,22,23,24]);
+  spark('spark-2', [3,3,4,4,4,5,5], '#dc2626');
+  spark('spark-3', [82,83,84,84,85,86,87]);
+  spark('spark-4', [44,43,43,42,42,42,42]);
+
+  // Trend
+  const trend = echarts.init(document.getElementById('chart-trend'));
+  const months = ['Окт','Ноя','Дек','Янв','Фев','Мар','Апр'];
+  trend.setOption({
+    animation:!reduceMotion, animationDuration:600,
+    grid, tooltip:{...tooltip, trigger:'axis'},
+    legend:{textStyle:{color:text, fontSize:12}, top:0, right:0, icon:'circle', itemWidth:8, itemHeight:8},
+    xAxis:{...axis, type:'category', boundaryGap:false, data:months},
+    yAxis:{...axis, type:'value'},
+    series:[
+      {name:'Активные', type:'line', data:[14,16,18,19,20,22,24], smooth:true, symbol:'none',
+       lineStyle:{color:accent, width:2.5}, areaStyle:{color:accent+'20'}},
+      {name:'Завершённые', type:'line', data:[8,10,12,11,14,15,16], smooth:true, symbol:'none',
+       lineStyle:{color:'#16a34a', width:2}, areaStyle:{color:'#16a34a20'}}
+    ]
+  });
+  new ResizeObserver(()=>trend.resize()).observe(document.getElementById('chart-trend'));
+
+  // Donut
+  const donut = echarts.init(document.getElementById('chart-donut'));
+  donut.setOption({
+    animation:!reduceMotion, animationDuration:600,
+    tooltip:{...tooltip, trigger:'item', formatter:'{b}: <b>{c}</b> ({d}%)'},
+    legend:{orient:'vertical', left:'right', top:'middle', textStyle:{color:text, fontSize:12}, itemWidth:8, itemHeight:8, icon:'circle'},
+    series:[{
+      type:'pie', radius:['55%','80%'], center:['35%','50%'],
+      avoidLabelOverlap:true, label:{show:false}, labelLine:{show:false},
+      itemStyle:{borderColor:'#fff', borderWidth:3, borderRadius:6},
+      data:[
+        {name:'Жилые',         value:42, itemStyle:{color:'#D97757'}},
+        {name:'Коммерческие',  value:28, itemStyle:{color:'#a16554'}},
+        {name:'Социальные',    value:18, itemStyle:{color:'#c89378'}},
+        {name:'Промышленные',  value:8,  itemStyle:{color:'#8c8c8a'}},
+        {name:'Прочее',        value:4,  itemStyle:{color:'#c4c4c2'}},
+      ]
+    }]
+  });
+  new ResizeObserver(()=>donut.resize()).observe(document.getElementById('chart-donut'));
+}
+</script>
+</body>
+</html>

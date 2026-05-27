@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Executive Summary — Q1 2026</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23fff' stroke='%23111' stroke-width='2'/%3E%3Cpath d='M8 22 L14 14 L18 18 L24 10' fill='none' stroke='%23111' stroke-width='2'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<style>
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#FFFFFF; --bg-2:#FAFAFA;
+    --text:#111111; --text-2:#3F3F46; --muted:#71717A;
+    --border:#111111; --border-2:#E5E5E5;
+    --accent:#111111; --positive:#0F766E; --negative:#9F1239;
+    --radius:0;
+  }
+  html,body { height:100%; }
+  body {
+    font-family:'IBM Plex Sans',-apple-system,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app { max-width:1280px; margin:0 auto; padding:48px 56px; }
+  .doc-header {
+    border-bottom:2px solid var(--border); padding-bottom:24px; margin-bottom:32px;
+    display:flex; justify-content:space-between; align-items:flex-end; gap:32px;
+  }
+  .doc-header h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.01em; }
+  .doc-header .meta { text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); line-height:1.7; text-transform:uppercase; letter-spacing:0.05em; }
+  .doc-header .meta strong { color:var(--text); font-weight:500; }
+  .summary {
+    border-left:3px solid var(--border); padding:0 0 0 20px; margin-bottom:40px; max-width:780px;
+    font-size:1.05rem; color:var(--text-2); line-height:1.6;
+  }
+  .summary strong { color:var(--text); }
+  .section-title {
+    font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted);
+    border-bottom:1px solid var(--border); padding-bottom:8px; margin:40px 0 20px;
+    font-weight:600;
+  }
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border-top:1px solid var(--border-2); border-left:1px solid var(--border-2); }
+  .kpi-cell { padding:24px 20px; border-right:1px solid var(--border-2); border-bottom:1px solid var(--border-2); }
+  .kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:8px; }
+  .kpi-value { font-size:2rem; font-weight:600; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; line-height:1.1; margin-bottom:4px; font-family:'IBM Plex Sans',sans-serif; }
+  .kpi-delta { font-family:'IBM Plex Mono',monospace; font-size:11px; font-variant-numeric:tabular-nums; }
+  .kpi-delta.positive { color:var(--positive); }
+  .kpi-delta.negative { color:var(--negative); }
+  .row { display:grid; grid-template-columns:2fr 1fr; gap:32px; margin-bottom:32px; }
+  .panel { border:1px solid var(--border-2); padding:24px; }
+  .panel-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+  .panel-sub { font-size:11px; color:var(--muted); margin-bottom:18px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:0.05em; }
+  .chart { height:320px; }
+  .chart-sm { height:260px; }
+  table.fin { width:100%; border-collapse:collapse; font-size:13px; }
+  table.fin th { text-align:left; font-weight:500; color:var(--muted); padding:10px 8px; border-bottom:2px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+  table.fin th:not(:first-child), table.fin td:not(:first-child) { text-align:right; font-variant-numeric:tabular-nums; font-family:'IBM Plex Mono',monospace; }
+  table.fin td { padding:12px 8px; border-bottom:1px solid var(--border-2); }
+  table.fin tr:last-child td { border-bottom:0; font-weight:600; border-top:1px solid var(--border); padding-top:14px; }
+  .delta-cell.positive { color:var(--positive); }
+  .delta-cell.negative { color:var(--negative); }
+  footer-doc { display:block; margin-top:56px; padding-top:24px; border-top:1px solid var(--border-2); font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:0.05em; display:flex; justify-content:space-between; }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (max-width:900px) {
+    .app { padding:32px 24px; }
+    .kpi-grid { grid-template-columns:repeat(2,1fr); }
+    .row { grid-template-columns:1fr; }
+    .doc-header { flex-direction:column; align-items:flex-start; }
+    .doc-header .meta { text-align:left; }
+  }
+  @media print {
+    .app { padding:0; max-width:none; }
+    .panel { break-inside:avoid; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="doc-header">
+    <div>
+      <h1>Q1 2026 — Executive Summary</h1>
+      <div style="font-size:13px; color:var(--text-2); margin-top:6px;">Финансовые и операционные показатели · Конфиденциально</div>
+    </div>
+    <div class="meta">
+      Период · <strong>01 янв – 31 мар 2026</strong><br>
+      Подготовлено · <strong>Финансовый отдел</strong><br>
+      Дата · <strong id="now"></strong>
+    </div>
+  </header>
+
+  <div class="summary">
+    Выручка по итогам Q1 2026 составила <strong>₸ 1,824 млн</strong>, что на <strong>+14.2%</strong> выше плана и на <strong>+22.6%</strong> выше Q1 2025. Операционная маржа выросла до <strong>23.1%</strong>. Главные риски квартала — рост себестоимости в сегменте «Промышленные» и задержка двух крупных проектов в Алматинском филиале.
+  </div>
+
+  <h2 class="section-title">Ключевые показатели</h2>
+  <div class="kpi-grid">
+    <div class="kpi-cell">
+      <div class="kpi-label">Выручка</div>
+      <div class="kpi-value">₸ 1,824M</div>
+      <div class="kpi-delta positive">▲ +22.6% YoY · +14.2% vs план</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Операционная маржа</div>
+      <div class="kpi-value">23.1%</div>
+      <div class="kpi-delta positive">▲ +2.4pp YoY</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Заказы (шт)</div>
+      <div class="kpi-value">142</div>
+      <div class="kpi-delta positive">▲ +18 vs Q4</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">DSO</div>
+      <div class="kpi-value">38<span style="font-size:1rem; color:var(--muted);"> дн</span></div>
+      <div class="kpi-delta negative">▼ +4 дн vs цель</div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Финансовая динамика</h2>
+  <div class="row">
+    <div class="panel">
+      <div class="panel-title">Выручка vs план · 12 мес</div>
+      <div class="panel-sub">млн ₸ · ежемесячно</div>
+      <div class="chart" id="chart-trend"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Структура выручки</div>
+      <div class="panel-sub">Q1 2026 · по сегментам</div>
+      <div class="chart-sm" id="chart-mix"></div>
+    </div>
+  </div>
+
+  <h2 class="section-title">P&amp;L · сравнение с Q1 2025</h2>
+  <div class="panel" style="padding:0;">
+    <table class="fin">
+      <thead>
+        <tr><th>Статья</th><th>Q1 2026</th><th>Q1 2025</th><th>Δ</th><th>%</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Выручка</td><td>1,824</td><td>1,488</td><td class="delta-cell positive">+336</td><td class="delta-cell positive">+22.6%</td></tr>
+        <tr><td>Себестоимость</td><td>(982)</td><td>(854)</td><td class="delta-cell negative">+128</td><td class="delta-cell negative">+15.0%</td></tr>
+        <tr><td>Валовая прибыль</td><td>842</td><td>634</td><td class="delta-cell positive">+208</td><td class="delta-cell positive">+32.8%</td></tr>
+        <tr><td>Опер. расходы</td><td>(420)</td><td>(382)</td><td class="delta-cell negative">+38</td><td class="delta-cell negative">+9.9%</td></tr>
+        <tr><td>EBITDA</td><td>422</td><td>252</td><td class="delta-cell positive">+170</td><td class="delta-cell positive">+67.5%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="section-title">Риски и наблюдения</h2>
+  <div class="row" style="grid-template-columns:1fr 1fr;">
+    <div class="panel">
+      <div class="panel-title">Маржа по сегментам</div>
+      <div class="panel-sub">Q1 2026 · %</div>
+      <div class="chart-sm" id="chart-margin"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Открытые риски</div>
+      <div class="panel-sub">по приоритету</div>
+      <ul style="list-style:none; font-size:13px;">
+        <li style="padding:10px 0; border-bottom:1px solid var(--border-2); display:flex; gap:10px;"><span style="color:var(--negative); font-weight:600; font-family:'IBM Plex Mono',monospace;">H</span><span>Себестоимость промышленного сегмента: +18% YoY, требует пересмотра контрактов на материалы.</span></li>
+        <li style="padding:10px 0; border-bottom:1px solid var(--border-2); display:flex; gap:10px;"><span style="color:#CA8A04; font-weight:600; font-family:'IBM Plex Mono',monospace;">M</span><span>Алматинский филиал: 2 крупных проекта с задержкой 4–6 недель.</span></li>
+        <li style="padding:10px 0; border-bottom:1px solid var(--border-2); display:flex; gap:10px;"><span style="color:#CA8A04; font-weight:600; font-family:'IBM Plex Mono',monospace;">M</span><span>DSO 38 дней против цели 34 — пересмотреть условия с 3 крупными клиентами.</span></li>
+        <li style="padding:10px 0; display:flex; gap:10px;"><span style="color:var(--muted); font-weight:600; font-family:'IBM Plex Mono',monospace;">L</span><span>Курс USD/KZT — без изменений к плану.</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer-doc>
+    <span>Документ #FIN-2026-Q1-EXEC · v1.0</span>
+    <span>Внутреннее использование</span>
+  </footer-doc>
+</div>
+
+<script>
+document.getElementById('now').textContent = new Date().toLocaleDateString('ru-RU');
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const text='#111111', muted='#71717A';
+const tooltip = {
+  backgroundColor:'#FFFFFF', borderColor:'#111111', borderWidth:1,
+  textStyle:{color:text, fontSize:12, fontFamily:"'IBM Plex Sans',sans-serif"},
+  extraCssText:'border-radius:0; padding:8px 12px;'
+};
+const grid = {left:8, right:8, top:24, bottom:24, containLabel:true};
+const axis = {
+  axisLine:{lineStyle:{color:muted, opacity:0.3}}, axisTick:{show:false},
+  axisLabel:{color:muted, fontSize:11, fontFamily:"'IBM Plex Mono',monospace"},
+  splitLine:{lineStyle:{color:'#E5E5E5'}}
+};
+
+const trend = echarts.init(document.getElementById('chart-trend'));
+const months = ['Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек','Янв','Фев','Мар'];
+const planArr =  [480,490,500,510,510,520,540,560,580,600,610,620];
+const actualArr= [502,495,520,508,535,548,572,590,610,625,640,612];
+trend.setOption({
+  animation:!reduceMotion, animationDuration:600,
+  grid, tooltip:{...tooltip, trigger:'axis'},
+  legend:{textStyle:{color:text, fontSize:12}, top:0, right:0, icon:'rect', itemWidth:14, itemHeight:2},
+  xAxis:{...axis, type:'category', boundaryGap:false, data:months},
+  yAxis:{...axis, type:'value'},
+  series:[
+    {name:'Факт', type:'line', data:actualArr, smooth:false, symbol:'circle', symbolSize:5,
+     lineStyle:{color:'#111111', width:2}, itemStyle:{color:'#111111'}},
+    {name:'План', type:'line', data:planArr, smooth:false, symbol:'none',
+     lineStyle:{color:'#71717A', width:1, type:'dashed'}}
+  ]
+});
+new ResizeObserver(()=>trend.resize()).observe(document.getElementById('chart-trend'));
+
+const mix = echarts.init(document.getElementById('chart-mix'));
+mix.setOption({
+  animation:!reduceMotion, animationDuration:600,
+  tooltip:{...tooltip, trigger:'item', formatter:'{b}<br/><b>{c}</b> ({d}%)'},
+  series:[{
+    type:'pie', radius:['60%','85%'], center:['50%','55%'],
+    avoidLabelOverlap:true, label:{show:false}, labelLine:{show:false},
+    itemStyle:{borderColor:'#FFFFFF', borderWidth:2},
+    data:[
+      {name:'Жилые',         value:42, itemStyle:{color:'#111111'}},
+      {name:'Коммерческие',  value:24, itemStyle:{color:'#3F3F46'}},
+      {name:'Социальные',    value:18, itemStyle:{color:'#71717A'}},
+      {name:'Промышленные',  value:12, itemStyle:{color:'#A1A1AA'}},
+      {name:'Прочее',        value:4,  itemStyle:{color:'#D4D4D8'}}
+    ]
+  }],
+  legend:{orient:'vertical', left:'left', top:'middle', textStyle:{color:text, fontSize:11}, icon:'rect', itemWidth:10, itemHeight:10}
+});
+new ResizeObserver(()=>mix.resize()).observe(document.getElementById('chart-mix'));
+
+const margin = echarts.init(document.getElementById('chart-margin'));
+margin.setOption({
+  animation:!reduceMotion, animationDuration:600,
+  grid:{...grid, top:36},
+  tooltip:{...tooltip, trigger:'axis', axisPointer:{type:'shadow'}, formatter:'{b}<br/>Маржа: <b>{c}%</b>'},
+  xAxis:{...axis, type:'category', data:['Жилые','Коммерч.','Социальн.','Промышл.','Прочее']},
+  yAxis:{...axis, type:'value', axisLabel:{...axis.axisLabel, formatter:'{value}%'}},
+  series:[{
+    type:'bar', data:[28.4, 24.2, 19.8, 9.6, 12.1],
+    itemStyle:{color:'#111111'}, barMaxWidth:42,
+    label:{show:true, position:'top', color:text, fontSize:11, fontFamily:"'IBM Plex Mono',monospace", formatter:'{c}%'}
+  }]
+});
+new ResizeObserver(()=>margin.resize()).observe(document.getElementById('chart-margin'));
+</script>
+</body>
+</html>

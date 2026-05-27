@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytics — Zinc Dark</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2309090B'/%3E%3Crect x='8' y='8' width='16' height='16' rx='4' fill='%233B82F6'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#09090B; --bg-2:#18181B; --bg-3:#27272A;
+    --text:#FAFAFA; --text-2:#E4E4E7; --muted:#A1A1AA;
+    --border:#27272A; --border-2:#3F3F46;
+    --accent: oklch(0.7 0.18 245);     /* electric blue */
+    --accent-soft: oklch(0.7 0.18 245 / 0.15);
+    --accent-2: oklch(0.7 0.18 290);   /* violet */
+    --positive:#22c55e; --negative:#ef4444; --warning:#f59e0b;
+    --radius:14px;
+  }
+  html,body { height:100%; }
+  body {
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app { min-height:100vh; display:flex; flex-direction:column; }
+  header {
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+    padding:18px 28px; border-bottom:1px solid var(--border);
+    background:rgba(9,9,11,0.85); backdrop-filter:blur(12px);
+    position:sticky; top:0; z-index:10;
+  }
+  h1 { font-size:1.25rem; font-weight:600; letter-spacing:-0.02em; display:flex; align-items:center; gap:10px; }
+  .logo {
+    width:24px; height:24px; border-radius:6px; background:var(--bg-2);
+    display:grid; place-items:center; border:1px solid var(--border);
+  }
+  .logo::after { content:''; width:10px; height:10px; background:var(--accent); border-radius:3px; }
+  .filter-bar {
+    display:flex; gap:12px; align-items:center; padding:14px 28px;
+    border-bottom:1px solid var(--border); background:var(--bg);
+    flex-wrap:wrap;
+  }
+  .segmented { display:inline-flex; background:var(--bg-2); border-radius:8px; padding:3px; border:1px solid var(--border); }
+  .segmented button {
+    background:transparent; border:0; padding:6px 14px; border-radius:6px;
+    font-size:13px; color:var(--muted); cursor:pointer; font-family:inherit; transition:color 0.15s;
+  }
+  .segmented button.active { background:var(--bg-3); color:var(--text); }
+  .segmented button:not(.active):hover { color:var(--text-2); }
+  .spacer { flex:1; }
+  .btn {
+    background:var(--bg-2); color:var(--text); border:1px solid var(--border);
+    padding:8px 14px; border-radius:8px; font-size:13px; font-weight:500;
+    cursor:pointer; font-family:inherit; transition:all 0.15s;
+  }
+  .btn:hover { border-color:var(--border-2); background:var(--bg-3); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.primary:hover { filter:brightness(1.1); }
+  .cmdk { font-family:'JetBrains Mono',monospace; font-size:11px; padding:6px 10px; }
+  main {
+    flex:1; padding:24px 28px; display:grid;
+    grid-template-columns:repeat(12, 1fr); grid-auto-rows:minmax(120px, auto); gap:16px;
+  }
+  .tile {
+    background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; transition:border-color 0.2s, transform 0.2s;
+    display:flex; flex-direction:column; min-width:0;
+  }
+  .tile:hover { border-color:var(--border-2); }
+  .tile-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .tile-title { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:500; }
+  .tile-action { font-size:11px; color:var(--accent); cursor:pointer; }
+  .hero { grid-column:span 6; grid-row:span 2; background:linear-gradient(135deg, var(--bg-2) 0%, var(--accent-soft) 100%); }
+  .kpi { grid-column:span 3; }
+  .trend { grid-column:span 12; grid-row:span 2; min-height:280px; }
+  .table-tile { grid-column:span 5; grid-row:span 3; }
+  .secondary { grid-column:span 7; grid-row:span 3; min-height:340px; }
+  .kpi-value {
+    font-size:2rem; font-weight:600; letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums; margin:6px 0 4px;
+    font-family:'Inter',sans-serif;
+  }
+  .hero .kpi-value { font-size:3.75rem; line-height:1; }
+  .delta { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .delta.positive { color:var(--positive); }
+  .delta.negative { color:var(--negative); }
+  .delta-muted { color:var(--muted); margin-left:6px; font-weight:400; }
+  .spark { flex:1; min-height:48px; margin-top:10px; }
+  .hero .spark { min-height:90px; }
+  .chart { flex:1; min-height:0; }
+  table.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  table.tbl th { text-align:left; font-weight:500; color:var(--muted); padding:8px 6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+  table.tbl td { padding:10px 6px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; }
+  table.tbl tr:last-child td { border-bottom:0; }
+  table.tbl tr:hover { background:var(--bg-3); cursor:pointer; }
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:500; }
+  .badge::before { content:''; width:6px; height:6px; border-radius:50%; }
+  .badge.green { background:rgba(34,197,94,0.12); color:#86efac; }
+  .badge.green::before { background:var(--positive); }
+  .badge.amber { background:rgba(245,158,11,0.12); color:#fcd34d; }
+  .badge.amber::before { background:var(--warning); }
+  .badge.red   { background:rgba(239,68,68,0.12); color:#fca5a5; }
+  .badge.red::before { background:var(--negative); }
+  .badge.gray  { background:var(--bg-3); color:var(--muted); }
+  .badge.gray::before { background:var(--muted); }
+  .sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:40; }
+  .sheet {
+    position:fixed; top:0; right:0; height:100vh; width:min(440px, 92vw);
+    background:var(--bg-2); border-left:1px solid var(--border); z-index:50;
+    box-shadow:-8px 0 32px rgba(0,0,0,0.5); padding:24px;
+    display:flex; flex-direction:column; gap:14px; overflow-y:auto;
+  }
+  .sheet h3 { font-size:1.1rem; font-weight:600; }
+  .sheet-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .sheet-row span:first-child { color:var(--muted); }
+  .mono { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  button:focus-visible, .tile:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (max-width:1024px) {
+    main { grid-template-columns:repeat(6, 1fr); }
+    .hero, .trend, .table-tile, .secondary { grid-column:span 6; }
+    .kpi { grid-column:span 3; }
+  }
+  @media (max-width:640px) {
+    header, .filter-bar, main { padding-left:16px; padding-right:16px; }
+    main { grid-template-columns:1fr; }
+    .hero, .trend, .table-tile, .secondary, .kpi { grid-column:span 1; }
+    .hero { grid-row:span 1; }
+    .hero .kpi-value { font-size:2.75rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+  }
+</style>
+</head>
+<body x-data="dash()">
+<div class="app">
+  <header>
+    <h1><span class="logo"></span> Product Analytics</h1>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span class="mono" x-text="lastUpdate"></span>
+      <button class="btn cmdk">⌘ K</button>
+      <button class="btn">Share</button>
+      <button class="btn primary">+ Event</button>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <div class="segmented" role="tablist" aria-label="Period">
+      <template x-for="p in periods" :key="p">
+        <button :class="{active: period===p}" @click="period=p" :aria-selected="period===p" x-text="p"></button>
+      </template>
+    </div>
+    <div class="spacer"></div>
+    <select class="btn"><option>All cohorts</option><option>Free</option><option>Pro</option></select>
+    <select class="btn"><option>All regions</option><option>EU</option><option>US</option><option>APAC</option></select>
+  </div>
+
+  <main>
+    <section class="tile hero">
+      <div class="tile-header"><span class="tile-title">Monthly Active Users</span></div>
+      <div class="kpi-value" x-text="fmt(kpi.mau)"></div>
+      <div>
+        <span class="delta positive">↑ +18.2%</span>
+        <span class="delta-muted">vs last 30d</span>
+      </div>
+      <div class="spark" id="spark-hero" role="img" aria-label="MAU trend — growing"></div>
+    </section>
+
+    <section class="tile kpi">
+      <div class="tile-title">Sessions / day</div>
+      <div class="kpi-value" x-text="fmt(kpi.sessions)"></div>
+      <div class="delta positive">↑ +6.4%</div>
+      <div class="spark" id="spark-1"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Avg duration</div>
+      <div class="kpi-value">4<span style="font-size:1.2rem; color:var(--muted);">m</span> 12<span style="font-size:1.2rem; color:var(--muted);">s</span></div>
+      <div class="delta negative">↓ −0.3m</div>
+      <div class="spark" id="spark-2"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Conversion</div>
+      <div class="kpi-value">3.84<span style="font-size:1.2rem; color:var(--muted);">%</span></div>
+      <div class="delta positive">↑ +0.42pp</div>
+      <div class="spark" id="spark-3"></div>
+    </section>
+    <section class="tile kpi">
+      <div class="tile-title">Errors / 1k req</div>
+      <div class="kpi-value" style="color:var(--positive);">0.12</div>
+      <div class="delta positive">↓ −0.08</div>
+      <div class="spark" id="spark-4"></div>
+    </section>
+
+    <section class="tile trend">
+      <div class="tile-header">
+        <span class="tile-title">Active users · Sessions · 30 days</span>
+        <span class="tile-action">Open insights →</span>
+      </div>
+      <div class="chart" id="chart-trend"></div>
+    </section>
+
+    <section class="tile table-tile">
+      <div class="tile-header"><span class="tile-title">Top events</span></div>
+      <table class="tbl">
+        <thead><tr><th>Event</th><th>Status</th><th style="text-align:right;">Count</th></tr></thead>
+        <tbody>
+          <template x-for="r in events" :key="r.id">
+            <tr @click="selected=r">
+              <td>
+                <div style="font-weight:500;" x-text="r.event"></div>
+                <div class="mono" x-text="r.path"></div>
+              </td>
+              <td><span class="badge" :class="r.color" x-text="r.status"></span></td>
+              <td style="text-align:right; font-weight:500;" x-text="fmt(r.count)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="tile secondary">
+      <div class="tile-header"><span class="tile-title">Traffic by source</span></div>
+      <div class="chart" id="chart-bar"></div>
+    </section>
+  </main>
+</div>
+
+<template x-if="selected">
+  <div>
+    <div class="sheet-bg" @click="selected=null"></div>
+    <aside class="sheet" role="dialog">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 x-text="selected.event"></h3>
+        <button class="btn" @click="selected=null">×</button>
+      </div>
+      <div class="sheet-row"><span>Path</span><span class="mono" x-text="selected.path"></span></div>
+      <div class="sheet-row"><span>Status</span><span class="badge" :class="selected.color" x-text="selected.status"></span></div>
+      <div class="sheet-row"><span>Count (30d)</span><span x-text="fmt(selected.count)"></span></div>
+      <div class="sheet-row"><span>p50 latency</span><span class="mono">42ms</span></div>
+      <div class="sheet-row"><span>p99 latency</span><span class="mono">312ms</span></div>
+    </aside>
+  </div>
+</template>
+
+<script>
+function dash() { return {
+  period:'30d', periods:['7d','30d','90d','1y','All'],
+  lastUpdate:'Updated ' + new Date().toLocaleTimeString('en-GB'),
+  selected:null,
+  kpi:{ mau:48312, sessions:9842, },
+  events:[
+    {id:1, event:'page_view',     path:'/dashboard',   status:'OK',     color:'green', count:142500},
+    {id:2, event:'sign_up',       path:'/auth/signup', status:'OK',     color:'green', count:1820},
+    {id:3, event:'checkout_start',path:'/checkout',    status:'Slow',   color:'amber', count:842},
+    {id:4, event:'api_error',     path:'/api/v2/sync', status:'Error',  color:'red',   count:128},
+    {id:5, event:'export_csv',    path:'/export',      status:'OK',     color:'green', count:412},
+    {id:6, event:'logout',        path:'/auth/logout', status:'Idle',   color:'gray',  count:1205},
+  ],
+  fmt(n){ return new Intl.NumberFormat('en-US').format(n); },
+  init(){ this.$nextTick(initCharts); }
+};}
+
+function initCharts() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const accent='#3B82F6', accent2='#8B5CF6', muted='#A1A1AA', text='#E4E4E7';
+  const tooltip = {
+    backgroundColor:'rgba(24,24,27,0.95)', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+    textStyle:{color:'#FAFAFA', fontSize:12},
+    extraCssText:'backdrop-filter:blur(8px); border-radius:8px;'
+  };
+  const grid = { left:8, right:8, top:24, bottom:24, containLabel:true };
+  const axis = {
+    axisLine:{lineStyle:{color:muted, opacity:0.2}}, axisTick:{show:false},
+    axisLabel:{color:muted, fontSize:11}, splitLine:{lineStyle:{color:'rgba(255,255,255,0.05)'}}
+  };
+
+  function spark(id, data, color=accent) {
+    const c = echarts.init(document.getElementById(id));
+    c.setOption({
+      animation:!reduceMotion, animationDuration:600,
+      grid:{left:0,right:0,top:0,bottom:0},
+      xAxis:{type:'category', show:false, data:data.map((_,i)=>i)},
+      yAxis:{type:'value', show:false, scale:true},
+      tooltip:{...tooltip, trigger:'axis'},
+      series:[{
+        type:'line', data, smooth:true, symbol:'none',
+        lineStyle:{color, width:2},
+        areaStyle:{color: new echarts.graphic.LinearGradient(0,0,0,1,[
+          {offset:0, color: color+'AA'}, {offset:1, color: color+'00'}
+        ])}
+      }]
+    });
+    new ResizeObserver(()=>c.resize()).observe(document.getElementById(id));
+  }
+
+  spark('spark-hero',[28000,30200,32100,33500,35800,38100,40200,42500,44100,46200,47800,48312], accent);
+  spark('spark-1',[8200,8500,8900,9100,9400,9700,9842]);
+  spark('spark-2',[4.5,4.4,4.3,4.3,4.2,4.2,4.2], '#ef4444');
+  spark('spark-3',[3.2,3.4,3.5,3.6,3.7,3.8,3.84]);
+  spark('spark-4',[0.22,0.18,0.15,0.14,0.13,0.12,0.12], '#22c55e');
+
+  const trend = echarts.init(document.getElementById('chart-trend'));
+  const days = Array.from({length:30}, (_,i)=>`d${i+1}`);
+  const mau = days.map((_,i)=> Math.round(40000 + i*300 + Math.random()*1500));
+  const sess= days.map((_,i)=> Math.round(8000 + i*70 + Math.random()*600));
+  trend.setOption({
+    animation:!reduceMotion, animationDuration:600,
+    grid, tooltip:{...tooltip, trigger:'axis'},
+    legend:{textStyle:{color:text, fontSize:12}, top:0, right:0, icon:'circle', itemWidth:8, itemHeight:8},
+    xAxis:{...axis, type:'category', boundaryGap:false, data:days},
+    yAxis:[{...axis, type:'value', position:'left'}, {...axis, type:'value', position:'right'}],
+    series:[
+      {name:'MAU', type:'line', data:mau, smooth:true, symbol:'none',
+       lineStyle:{color:accent, width:2.5},
+       areaStyle:{color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:accent+'66'},{offset:1,color:accent+'00'}])}},
+      {name:'Sessions', type:'line', data:sess, smooth:true, symbol:'none', yAxisIndex:1,
+       lineStyle:{color:accent2, width:2}, areaStyle:{color:accent2+'15'}}
+    ]
+  });
+  new ResizeObserver(()=>trend.resize()).observe(document.getElementById('chart-trend'));
+
+  const bar = echarts.init(document.getElementById('chart-bar'));
+  bar.setOption({
+    animation:!reduceMotion, animationDuration:600,
+    grid:{...grid, top:36},
+    tooltip:{...tooltip, trigger:'axis', axisPointer:{type:'shadow'}},
+    xAxis:{...axis, type:'category', data:['Direct','Search','Social','Email','Referral','Paid','Other']},
+    yAxis:{...axis, type:'value'},
+    series:[{
+      type:'bar', data:[18420,12800,8400,5200,3800,2100,920],
+      itemStyle:{
+        color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:accent},{offset:1,color:accent+'66'}]),
+        borderRadius:[6,6,0,0]
+      },
+      barMaxWidth:36
+    }]
+  });
+  new ResizeObserver(()=>bar.resize()).observe(document.getElementById('chart-bar'));
+}
+</script>
+</body>
+</html>

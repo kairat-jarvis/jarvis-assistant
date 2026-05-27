@@ -25,16 +25,25 @@ from typing import Iterable, Optional
 # ─── doc_code parsing ─────────────────────────────────────────────────────────
 
 # Поддерживаемые префиксы документов: СН, СП, СНиП, ВСН, ГОСТ, ОСТ, РД, ПУЭ,
-# плюс варианты с " РК" и слитное СНРК/СПРК (исправляется до "СН РК").
+# плюс варианты с " РК" / " Р" (ГОСТ Р — российский) и слитное СНРК/СПРК.
+# В хвосте номера допускаем точки, ASCII-дефис и em-dash (U+2014, частый в годе).
 _DOC_CODE_RE = re.compile(
     r"\b(?:СНиП|СНРК|СПРК|СН|СП|ВСН|ГОСТ|ОСТ|РД|ПУЭ|НТП)"
-    r"(?:\s*РК)?"
+    r"(?:\s*Р[К]?)?"
     r"\s*"
-    r"\d[\d.\-]*\d",
+    r"\d[\d.‐-―\-]*\d",
     re.IGNORECASE,
 )
 
 _DOC_YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
+
+# Префикс и хвост-номер отдельно — для fallback'а на случай, когда между ними
+# затёрся текст вроде "НАЦИОНАЛЬНЫЙ ГОСТ Р СТАНДАРТ 21.703—2020" (двухколоночный титул).
+_PREFIX_RE = re.compile(
+    r"\b(?:СНиП|СНРК|СПРК|СН|СП|ВСН|ГОСТ|ОСТ|РД|ПУЭ|НТП)(?:\s*Р[К]?)?\b",
+    re.IGNORECASE,
+)
+_VERSION_RE = re.compile(r"\d{1,4}(?:\s*[.‐-―\-]\s*\d{1,4}){1,5}")
 
 _LATIN_TO_CYRILLIC = str.maketrans({
     "C": "С", "P": "Р", "A": "А", "B": "В", "E": "Е", "H": "Н",
@@ -47,14 +56,36 @@ def normalize_doc_code(s: str) -> str:
     s = s.strip().rstrip(".").translate(_LATIN_TO_CYRILLIC)
     s = re.sub(r"\s+", " ", s)
     s = re.sub(r"\b(СН|СП|СНиП|НТП)РК\b", r"\1 РК", s)
+    # Убираем пробелы вокруг дефиса/em-dash внутри номера версии
+    # ('21.703— 2020' → '21.703—2020', '5.04 - 23 - 2002' → '5.04-23-2002').
+    s = re.sub(r"\s*([‐-―\-])\s*", r"\1", s)
     return s
 
 
 def detect_doc_code(text: str) -> Optional[str]:
-    """Ищет doc_code в первых ~3000 символов (обычно — титульный лист)."""
+    """Ищет doc_code в первых ~3000 символов (обычно — титульный лист).
+
+    Шаг 1: схлопываем переносы строк и ищем код в одной регулярке.
+    Шаг 2 (fallback): ищем префикс (ГОСТ/СН/etc) и номер версии отдельно в
+    пределах 80 символов друг от друга — спасает двухколоночный титул ГОСТ,
+    где между 'ГОСТ Р' и '21.703—2020' влез текст 'НАЦИОНАЛЬНЫЙ СТАНДАРТ'.
+    """
     head = text[:3000]
-    m = _DOC_CODE_RE.search(head)
-    return normalize_doc_code(m.group(0)) if m else None
+    # схлопываем все whitespace, чтобы regex не упирался в переносы строк
+    flat = re.sub(r"\s+", " ", head)
+
+    m = _DOC_CODE_RE.search(flat)
+    if m:
+        return normalize_doc_code(m.group(0))
+
+    pm = _PREFIX_RE.search(flat)
+    if not pm:
+        return None
+    window = flat[pm.end() : pm.end() + 80]
+    vm = _VERSION_RE.search(window)
+    if not vm:
+        return None
+    return normalize_doc_code(f"{pm.group(0)} {vm.group(0)}")
 
 
 def detect_doc_year(text: str) -> Optional[int]:
@@ -90,6 +121,14 @@ _CLAUSE_MARK_RE = re.compile(
 
 # Внутри страничного разделителя из ocr_waterfall: "--- стр. N (tier) ---"
 _PAGE_SEP_RE = re.compile(r"^--- стр\. \d+ \([^)]+\) ---$", re.MULTILINE)
+
+# Глаголы из преамбулы ГОСТ/СН — отсекаем такие "клозы": их нумерация (1, 2, 3, …)
+# затирает настоящие разделы документа в dedup'е.
+_PREAMBLE_RE = re.compile(
+    r"^(РАЗРАБОТАН|ВНЕСЕН[АО]?|УТВЕРЖДЕН[АО]?|ВЗАМЕН|ПРИНЯТ[АО]?|"
+    r"ПОДГОТОВЛЕН[АО]?|ВВЕД[ЕЁ]Н[АО]?|ИЗДАН[АО]?|ЗАРЕГИСТРИРОВАН[АО]?)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -134,6 +173,16 @@ def parse_clauses(text: str, *, min_body_len: int = 30) -> list[ParsedClause]:
         # Нормализуем пробелы/переносы.
         body = re.sub(r"\s+", " ", body).strip()
         if len(body) < min_body_len:
+            continue
+        # Отсекаем одиночные числа без точек > 200 — это годы/тиражи, не клозы.
+        if "." not in num and int(num) > 200:
+            continue
+        # Отсекаем преамбулу ГОСТ/СН: "1 РАЗРАБОТАН ...", "2 ВНЕСЕН ..." и пр.
+        if "." not in num and _PREAMBLE_RE.match(body):
+            continue
+        # Отсекаем строки оглавления: подряд 5+ точек/нижних подчёркиваний — это leader-точки.
+        # Реальные клозы такого почти не имеют.
+        if re.search(r"[.…_]{5,}", body):
             continue
         clause_no = f"p.{num}"
         if clause_no in seen:

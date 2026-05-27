@@ -1,0 +1,173 @@
+{
+  "name": "JARVIS Voice Search",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jarvis-voice-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "voice-search-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [-900, 300],
+      "webhookId": "jarvis-voice-search"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract query from ElevenLabs agent tool call\nconst body = $input.first().json.body || $input.first().json;\nconst query = body.query || body.text || body.message || '';\n\nif (!query || query.trim().length < 2) {\n  throw new Error('Parameter \"query\" is required');\n}\n\nreturn [{ json: { query: query.trim() } }];"
+      },
+      "id": "voice-search-validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": {{ JSON.stringify($json.query) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "voice-search-embed",
+      "name": "Get Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-460, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "K9JiW8NJnEvUzMrg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://omykcphkzmmqpwswwfsw.supabase.co/rest/v1/rpc/match_jarvis_memory",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"query_embedding\": {{ JSON.stringify($json.data[0].embedding) }},\n  \"match_threshold\": 0.5,\n  \"match_count\": 5\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "voice-search-supabase",
+      "name": "Search Memory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-240, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "uMhs5qLQoSQ3tuAf",
+          "name": "Supabase Storage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.2,\n  \"max_tokens\": 300,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Ты — голосовой помощник JARVIS. На основе найденных записей из памяти дай КРАТКИЙ ответ на запрос пользователя. Отвечай естественным разговорным языком на русском — это будет озвучено голосом. Максимум 3-4 предложения. Без списков и форматирования.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Запрос: {{ $('Validate Input').first().json.query }}\\n\\nНайденные записи из памяти:\\n{{ $input.first().json.map ? $input.first().json.map(r => `[${r.content_type}] ${r.content.substring(0, 300)}`).join('\\n---\\n') : JSON.stringify($input.first().json).substring(0, 1000) }}\"\n    }\n  ]\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "voice-search-synthesize",
+      "name": "Synthesize Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-20, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "K9JiW8NJnEvUzMrg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format response for ElevenLabs voice agent\nconst gptResponse = $input.first().json;\nconst query = $('Validate Input').first().json.query;\n\nconst answer = gptResponse?.choices?.[0]?.message?.content || 'Информация по этому запросу не найдена в памяти.';\n\n// ElevenLabs expects plain text or simple JSON\nreturn [{\n  json: {\n    result: answer,\n    query: query,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "voice-search-format",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "voice-search-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [420, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate Input", "type": "main", "index": 0 }]]
+    },
+    "Validate Input": {
+      "main": [[{ "node": "Get Embedding", "type": "main", "index": 0 }]]
+    },
+    "Get Embedding": {
+      "main": [[{ "node": "Search Memory", "type": "main", "index": 0 }]]
+    },
+    "Search Memory": {
+      "main": [[{ "node": "Synthesize Answer", "type": "main", "index": 0 }]]
+    },
+    "Synthesize Answer": {
+      "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]]
+    },
+    "Format Response": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "staticData": null,
+  "tags": [{ "name": "JARVIS" }, { "name": "Voice" }, { "name": "ElevenLabs" }]
+}

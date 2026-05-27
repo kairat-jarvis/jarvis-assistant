@@ -122,12 +122,15 @@ def load_pdf(
     embed_tokens = 0
 
     try:
-        # ── 1. extract via waterfall ─────────────────────────────────────────
-        # Импортируем лениво: парсер/журнал не должны тянуть pdfplumber и PaddleOCR.
-        from vypiska_ird.ird_extract.ocr_waterfall import extract_pdf
+        # ── 1. extract via Claude PDF API (как у expertise-orchestrator) ────
+        # Лениво — чтобы парсер/журнал не тянули anthropic/pypdf при импорте.
+        from .pdf_extract import extract_pdf
         if progress_print:
             print(f"[ntd_loader] extract: {pdf.name}", flush=True)
-        full_text, pages = extract_pdf(str(pdf))
+            progress_cb = lambda s: print(s, flush=True)  # noqa: E731
+        else:
+            progress_cb = None
+        full_text, pages = extract_pdf(str(pdf), progress=progress_cb)
         total_pages = len(pages)
         if not dry_run:
             for idx, p in enumerate(pages, start=1):

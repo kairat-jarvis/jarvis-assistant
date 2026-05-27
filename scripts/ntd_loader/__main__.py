@@ -24,8 +24,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
+
+# Подтягиваем .env (OPENAI_API_KEY, ANTHROPIC_API_KEY, NTD_PG_URL) если установлен dotenv.
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    load_dotenv(_PROJECT_ROOT / ".env")
+except ImportError:
+    # Совсем без зависимости: вручную распарсим простой .env (KEY=value, без кавычек).
+    _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    _env_path = _PROJECT_ROOT / ".env"
+    if _env_path.is_file():
+        for line in _env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            os.environ.setdefault(k, v)
 
 from . import journal
 from .loader import load_pdf

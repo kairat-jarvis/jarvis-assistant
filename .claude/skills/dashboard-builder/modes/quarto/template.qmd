@@ -1,0 +1,149 @@
+---
+title: "Project Dashboard"
+author: "JARVIS"
+date: today
+format:
+  dashboard:
+    theme: [cosmo, custom.scss]
+    nav-buttons:
+      - icon: github
+        href: https://github.com
+    orientation: rows
+    scrolling: false
+    expandable: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{python}
+#| label: setup
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from itables import show
+from datetime import datetime, timedelta
+
+# REPLACE: load real data here
+# df = pd.read_csv("data.csv")
+# df = pd.read_parquet("data.parquet")
+
+# Sample data
+dates = pd.date_range(end=datetime.now(), periods=90, freq='D')
+df = pd.DataFrame({
+    "date": dates,
+    "revenue": [200_000 + i*1500 + (i%7)*8000 for i in range(90)],
+    "orders":  [12 + (i // 3) for i in range(90)],
+    "segment": (["Жилые","Коммерческие","Социальные","Промышленные"] * 23)[:90],
+})
+
+# KPI computations
+total_revenue = df["revenue"].sum()
+total_orders = df["orders"].sum()
+avg_order = total_revenue / total_orders
+yoy_growth = 0.226  # placeholder
+```
+
+# {.toolbar}
+
+```{python}
+#| content: toolbar
+print(f"Период: последние 90 дней · Обновлено: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+```
+
+## Row {height="20%"}
+
+### Выручка {.valuebox color="primary"}
+
+```{python}
+#| content: valuebox
+dict(
+  icon="cash-coin",
+  color="primary",
+  value=f"₸ {total_revenue/1e6:.1f}M",
+  caption=f"+{yoy_growth*100:.1f}% YoY"
+)
+```
+
+### Заказов {.valuebox color="success"}
+
+```{python}
+#| content: valuebox
+dict(
+  icon="bag-check",
+  color="success",
+  value=f"{total_orders:,}".replace(",", " "),
+  caption="за 90 дней"
+)
+```
+
+### Средний чек {.valuebox color="info"}
+
+```{python}
+#| content: valuebox
+dict(
+  icon="receipt",
+  color="info",
+  value=f"₸ {avg_order/1000:.0f}K",
+  caption="средний размер"
+)
+```
+
+### Маржа {.valuebox color="warning"}
+
+```{python}
+#| content: valuebox
+dict(
+  icon="percent",
+  color="warning",
+  value="23.1%",
+  caption="оп. маржа"
+)
+```
+
+## Row {height="50%"}
+
+### Динамика выручки
+
+```{python}
+fig = px.line(df, x="date", y="revenue", template="plotly_white")
+fig.update_traces(line=dict(width=2.5, color="#3B82F6"), fill="tozeroy", fillcolor="rgba(59,130,246,0.1)")
+fig.update_layout(
+    margin=dict(l=20, r=20, t=20, b=20),
+    xaxis_title=None, yaxis_title=None,
+    font=dict(family="Inter, system-ui", size=12),
+    hoverlabel=dict(bgcolor="white", bordercolor="#e5e5e5"),
+)
+fig.show()
+```
+
+### Структура по сегментам
+
+```{python}
+seg = df.groupby("segment", as_index=False)["revenue"].sum()
+fig = px.pie(seg, names="segment", values="revenue", hole=0.6,
+             color_discrete_sequence=["#3B82F6","#8B5CF6","#EC4899","#F59E0B"])
+fig.update_traces(textposition='outside', textinfo='label+percent')
+fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), font=dict(family="Inter, system-ui"))
+fig.show()
+```
+
+## Row {height="30%"}
+
+### Топ-10 заказов
+
+```{python}
+top = df.nlargest(10, "revenue")[["date","segment","orders","revenue"]].copy()
+top["date"] = top["date"].dt.strftime("%Y-%m-%d")
+top["revenue"] = top["revenue"].apply(lambda v: f"₸ {v:,}".replace(",", " "))
+show(top, classes="display compact", paging=False, searching=False, info=False)
+```
+
+### Заметки
+
+::: {.card title="Наблюдения"}
+- Тренд устойчиво растущий: +22.6% YoY
+- Сегмент «Жилые» даёт 42% выручки
+- В декабре зафиксирован пик заказов — проверить сезонность
+:::

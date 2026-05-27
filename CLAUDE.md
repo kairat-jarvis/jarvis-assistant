@@ -3,45 +3,85 @@
 ## Проект
 JARVIS — система персонального AI-оркестратора, превращающая поток сознания (голос, текст, идеи) в конкретные действия. Claude сам является оркестратором, используя MCP серверы как инструменты.
 
-## Архитектура: Claude-native
+## Архитектура: Claude-native (dual-backend)
 - **Интерфейс**: Claude App на телефоне (claude.ai Project)
 - **Оркестратор**: Claude (системный промпт = JARVIS_SYSTEM_PROMPT.md)
-- **Память**: Supabase MCP → jarvis_memory, jarvis_projects, jarvis_agent_logs
+- **Память (локально, приоритет для Python и Claude Code)**:
+  - `postgresql://localhost/jarvis_local` — `jarvis_memory`, `jarvis_projects`, `jarvis_agent_logs`
+  - `postgresql://localhost/expertise_ntd` — `ntd_documents` (395) + `clause_vectors` (90 368)
+  - Drop-in клиенты с теми же сигнатурами что Supabase RPC:
+    `scripts/jarvis_local.py` (`JarvisLocal`) и `scripts/ntd_local.py` (`NtdLocal`).
+  - План редиректа и регламент синхронизации — `db/REDIRECT.md`.
+- **Память (cloud, для n8n и claude.ai Project)**: Supabase MCP — те же таблицы.
+  Периодическая миграция в локальную БД — `scripts/migrate_jarvis_from_supabase.py --from-supabase`.
 - **Инструменты**: MCP серверы (Supabase, Google Drive, Calendar, Gmail, Notion, Firecrawl)
-- **Автономные задачи**: n8n (только cron: AI-мониторинг, дайджесты → Telegram push)
+- **Автономные задачи**: n8n (только cron: AI-мониторинг, дайджесты → Telegram push) — пишет в Supabase
 - Telegram Bot — только для push-уведомлений от n8n, НЕ для общения
 
-## Supabase (проект: omykcphkzmmqpwswwfsw)
+## Базы данных
 
-### JARVIS таблицы
-- `jarvis_memory` — второй мозг (идеи, заметки, задачи, отчёты)
+### Локальный PostgreSQL 17 + pgvector 0.8
+
+#### `jarvis_local`
+- `jarvis_memory` — второй мозг (идеи, заметки, задачи, отчёты, эмбеддинги 1536d)
 - `jarvis_projects` — контексты проектов
 - `jarvis_agent_logs` — аудит действий
-- `match_jarvis_memory()` — RPC для семантического поиска
-- `get_jarvis_stats()` — RPC для статистики
+- RPC: `match_jarvis_memory()` (совместим с Supabase), `get_jarvis_stats()`,
+  `hybrid_search_jarvis_memory()` (BM25+cosine RRF, локальное расширение).
+- Материализованная FTS-колонка `fts` (русская морфология) — для гибридного поиска.
+- Схема: `db/jarvis-schema.sql` (идемпотентна, без RLS — доступ через ОС).
 
-### Существующие таблицы (НЕ трогать)
-- `documents` (166) — RAG-Consultant
-- `ntd_documents` (395) — база НТД
-- `agsk_catalog` (233,966) — каталог АГСК-3
-- `clause_vectors` (90,262) — пункты нормативов
+#### `expertise_ntd` (источник истины НТД для всех проектов на машине)
+- `ntd_documents` (395), `clause_vectors` (90 368, vector(1536), HNSW)
+- RPC: `match_clauses()`, `hybrid_search_clauses()`, `fts_only_search_clauses()`
+- Схема: `PROGRAMMING/expertise-orchestrator/db/ntd-schema.sql`.
+
+### Supabase (проект: omykcphkzmmqpwswwfsw) — cloud-зеркало
+- Те же таблицы что выше + `documents` (166, RAG-Consultant), `agsk_catalog` (233 966).
+- Используется n8n-воркфлоу и claude.ai Project; локально мы из неё периодически синхронизируем.
 
 ## Ключевые файлы
 - `JARVIS_SYSTEM_PROMPT.md` — системный промпт для Claude Project на claude.ai
 - `JARVIS_CONCEPT.md` — детальный концепт (справочный)
-- `scripts/setup_supabase.sql` — SQL-схема (уже применена)
+- `db/jarvis-schema.sql` — схема для локального PG (применять: `psql jarvis_local -f db/jarvis-schema.sql`)
+- `db/REDIRECT.md` — карта Supabase → local: какие файлы редиректить, какие нет
+- `scripts/setup_supabase.sql` — облачная схема (для Supabase, версия RLS+service_role)
 - `n8n_workflows/` — workflow для автономных задач
   - `JARVIS_AI_Monitor.json` — ежедневный AI-дайджест (03:00 UTC)
   - `JARVIS_YouTube_Monitor.json` — еженедельный анализ YouTube + синтез идей (пятница 09:00 UTC)
   - `JARVIS_Notion_Sync.json` — синхронизация Notion → Supabase (02:00 UTC)
   - `JARVIS_Voice_Search.json` — поиск по памяти для ElevenLabs агента
 
-## Связанные проекты (G:\Мой диск\AI\Claude Code\)
-- `PROMT/` — **единое хранилище промптов**: написание, корректировка, рефакторинг всех промптов выполняется здесь
-- `RAG-Consultant/` — Supabase SQL-паттерны, RAG pipeline
-- `Claude Assistant/` — 25+ навыков, промпты инженерных агентов
-- `n8n-mcp/` — MCP-сервер для n8n автоматизации
+## Воркспейс `/Users/kairat/Claude Code/` — карта проектов
+
+JARVIS является центральным оркестратором для всех проектов в этой папке.
+Полная карта с описаниями — в memory: `reference_claude_code_workspace.md`.
+
+### Экспертиза ПД (core)
+- `PROGRAMMING/expertise-orchestrator/` — multi-agent CLI (31 агент); `npm run poc -- agent:file.pdf`
+- `АГСК-3/` — проверка спецификаций на коды АГСК-3; делегат agsk-агента
+- `InSmart AGSK-3/` — веб-платформа формирования спецификаций (FastAPI + SQLite)
+- `КРАКЕН/` — аудит ПД на Anthropic Managed Agents
+- `Заключение/` — генератор КВЭ-заключений (.docx шаблоны)
+- `PROGRAMMING/expertise-projects/` — десктоп-учёт объектов экспертизы
+- `PROGRAMMING/fire-category-kz/` — калькулятор категорий пожарной опасности (РК)
+- `анализ проектов/` — WAT-агент анализа ПД
+
+### НТД, ИРД и документы
+- `ntd-qdrant-mcp/` — MCP-сервер НТД-поиска (Qdrant + BGE-M3 + rerank)
+- `ИРД выписка/` — WAT-агент выписок ИРД
+- `vypiska_ird/` (внутри JARVIS ASSISTANT) — десктоп-приложение batch-выписок ИРД
+
+### Инструменты и инфраструктура
+- `Claude Assistant/` — 25+ навыков исполнительного помощника
 - `FIRECRAWL/` — веб-скрейпинг для AI-мониторинга
+- `N8N-Builder/` — n8n workflow builder
+- `Excalidraw Diagram/`, `Excalidraw Visuals/` — диаграммы и визуалы
+- `Revit/` — WAT-агент для Revit
+- `Video Course/` — VideoForge CLI (video full cycle)
+
+### Архив
+- `ARHIVE/` — устаревшие версии проектов (не трогать без явного запроса)
 
 ## Claude Code Skills (.claude/skills/)
 
@@ -72,6 +112,7 @@ JARVIS — система персонального AI-оркестратора
 - `senior-prompt-engineer/` — промт-инжиниринг, оптимизация промптов
 - `n8n-workflow-patterns/` — паттерны n8n workflow
 - `skill-creator/` — создание новых скиллов (нет аналога в Superpowers, оставлен)
+- `notion/` — Notion API (2025-09-03 + data_sources), формулы 2.0, подводные камни (let+date, parseDate vs fromTimestamp), праздники РК для working-day формул
 
 ### Документы & Контент
 - `pdf-processing-pro/` — OCR, таблицы, формы из PDF
@@ -96,7 +137,7 @@ JARVIS — система персонального AI-оркестратора
 3. Действия логировать в jarvis_agent_logs
 4. По нормам — СНАЧАЛА искать в базе НТД
 5. n8n только для автономных cron-задач, НЕ для интерфейса
-6. Все промпты (написание, правки, поиск) — в `G:\Мой диск\AI\Claude Code\PROMT`, не в других проектах
+6. Все промпты (написание, правки, поиск) — в `Промты для Claude/`, не в других проектах
 
 ## Извлечение текста из PDF — трёхуровневый waterfall
 Фиксированный порядок, пропуск уровней запрещён:
@@ -110,6 +151,33 @@ Claude Vision не может быть OCR первого выбора и не �
 
 Код: `vypiska_ird/ird_extract/ocr_waterfall.py` (публичный API — `extract_pdf()`).
 Документация: `.claude/skills/pdf-processing-pro/OCR.md`.
+
+## Работа с Notion (формулы, API, свойства баз)
+Первоисточник документации: **https://www.notion.com/help** — сверяться ДО экспериментов с синтаксисом формул, версиями API и типами свойств. API-референс: https://developers.notion.com.
+
+Практические ограничения, подтверждённые на проекте «Проекты Экспертиза» (2026-04-24):
+- **API endpoint:** для PATCH свойств базы использовать `/v1/data_sources/{ds_id}` с заголовком `Notion-Version: 2025-09-03`. Старый `/v1/databases/{id}` в этой версии для свойств не работает. `ds_id` получается через `GET /v1/databases/{id}` → `data_sources[0].id`.
+- **`let()` в формулах 2.0:** НЕ биндить date-типизированные выражения (`prop("дата")`, `dateBetween(...)`). Результат — `Type error with formula`. Обход: инлайнить даты и dateBetween-результаты в каждое место использования.
+- **Константы-даты:** `parseDate("YYYY-MM-DD")` несовместим с prop-date при сравнении через `dateBetween` (разные типы). Использовать `fromTimestamp(ms)` — совместим.
+- **Идемпотентность PATCH:** повторный запрос с теми же именами свойств не дублирует — обновляет. Проверять существование перед добавлением новых свойств полезно для логов.
+
+Скрипты (добавление/обновление свойств БД):
+- `scripts/notion_add_project_fields.py` — 6 полей в «Проекты Экспертиза» (URL, Select, Formula).
+- `scripts/notion_update_expertise_workdays.py` — формула рабочих дней с 14 праздниками РК 2026. При смене года обновлять `RK_HOLIDAYS_2026`.
+
+Токен и Database ID — в `.env`: `NOTION_TOKEN`, `NOTION_DATABASE_ID`.
+
+## Интерактивные дашборды
+**Все запросы на дашборды, панели, KPI-экраны, визуализацию данных, аналитические отчёты** выполняются скиллом **`dashboard-builder`** (`.claude/skills/dashboard-builder/`).
+
+Триггеры: «дашборд», «панель», «аналитика», «KPI», «визуализация», «BI-отчёт» / dashboard, analytics, monitoring, KPI screen.
+
+Workflow:
+1. Скилл `dashboard-builder` — точка входа.
+2. Mode: **single-html** (по умолчанию, HTML-артефакт) / **next-shadcn** (приложение) / **quarto** (отчёт).
+3. Тема: claude-light / zinc-dark / executive / realtime-ops.
+4. Движок по умолчанию — **ECharts 5.6** (CDN). Recharts — только для next-shadcn.
+5. Готовые `.html` сохранять в `JARVIS ASSISTANT/` под именем `<topic>_<YYYY-MM-DD>.html`.
 
 ## Регистрация ресурсов в ЕШДИ (ППРК №832)
 Для доступа с рабочих мест Госэкспертизы ресурс должен: (а) хоститься в РК со статическим IP, (б) пройти проверку в ЕШДИ.
