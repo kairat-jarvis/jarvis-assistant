@@ -224,6 +224,21 @@
 
 ## Банк идей
 
+### Источники идей
+
+| Источник | Путь | Обновление |
+|----------|------|-----------|
+| 📱 Telegram | `ideas/*.md` в GitHub репо | каждые 15 мин (git pull на Mac) |
+| 💬 Этот чат | jarvis_memory (Supabase) | немедленно через `jarvis_save()` |
+
+**Идеи из Telegram** → n8n workflow → GitHub `kairat-jarvis/jarvis-assistant/ideas/` → git pull на Mac.
+Когда JARVIS видит файлы в `ideas/` со статусом `new` — оценивает (feasibility/impact) и обновляет фронтматтер.
+
+**Команда для проверки новых идей в Claude Code:**
+```bash
+ls -t "/Users/kairat/Claude Code/JARVIS ASSISTANT/ideas/" | grep -v README
+```
+
 Все идеи хранятся в jarvis_memory с content_type='idea'. Для каждой идеи:
 - feasibility_score (1-10): насколько реализуемо с текущими ресурсами
 - impact_score (1-10): потенциальное влияние на бизнес/карьеру

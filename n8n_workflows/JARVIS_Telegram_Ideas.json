@@ -1,0 +1,168 @@
+{
+  "name": "JARVIS — Telegram Ideas → GitHub",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "jarvis-telegram-ideas",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CRED_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-chat-id",
+              "leftValue": "={{ $json.message.chat.id }}",
+              "rightValue": "={{ $vars.TELEGRAM_CHAT_ID }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-owner",
+      "name": "Только владелец",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message;\nconst text = msg.text || '';\nconst date = new Date();\n\n// Slug из первых 5 слов\nconst words = text\n  .replace(/[^\\w\\sа-яёА-ЯЁ]/g, '')\n  .split(/\\s+/)\n  .slice(0, 5)\n  .join('-')\n  .toLowerCase()\n  .replace(/[а-яёА-ЯЁ]/g, c => ({\n    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo',\n    'ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m',\n    'н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u',\n    'ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'sch',\n    'ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'\n  }[c.toLowerCase()] || c));\n\nconst pad = n => String(n).padStart(2, '0');\nconst dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;\nconst timeStr = `${pad(date.getHours())}-${pad(date.getMinutes())}`;\nconst filename = `${dateStr}_${timeStr}_${slug || 'idea'}.md`;\n\nconst content = [\n  '---',\n  `date: ${dateStr} ${pad(date.getHours())}:${pad(date.getMinutes())}`,\n  'source: telegram',\n  'status: new',\n  'feasibility: ~',\n  'impact: ~',\n  'tags: []',\n  '---',\n  '',\n  text\n].join('\\n');\n\nconst contentB64 = Buffer.from(content).toString('base64');\n\nreturn [{\n  json: {\n    filename,\n    content,\n    contentB64,\n    dateStr,\n    timeStr,\n    chatId: msg.chat.id,\n    messageId: msg.message_id,\n    text\n  }\n}];"
+      },
+      "id": "format-idea",
+      "name": "Форматировать идею",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/kairat-jarvis/jarvis-assistant/contents/ideas/{{ $json.filename }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"idea: {{ $json.filename }} (via telegram)\",\n  \"content\": \"{{ $json.contentB64 }}\"\n}",
+        "options": {}
+      },
+      "id": "github-push",
+      "name": "GitHub — создать файл",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GITHUB_CRED_ID",
+          "name": "GitHub PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Форматировать идею').item.json.chatId }}",
+        "text": "=💡 Идея сохранена в GitHub:\\n`ideas/{{ $('Форматировать идею').item.json.filename }}`\\n\\nJARVIS оценит и добавит feasibility/impact при следующей сессии.",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_to_message_id": "={{ $('Форматировать идею').item.json.messageId }}"
+        }
+      },
+      "id": "telegram-confirm",
+      "name": "Telegram — подтвердить",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1120, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CRED_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "❌ Доступ запрещён.",
+        "additionalFields": {}
+      },
+      "id": "telegram-deny",
+      "name": "Telegram — отказ",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [680, 420],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CRED_ID",
+          "name": "JARVIS Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [{ "node": "Только владелец", "type": "main", "index": 0 }]
+      ]
+    },
+    "Только владелец": {
+      "main": [
+        [{ "node": "Форматировать идею", "type": "main", "index": 0 }],
+        [{ "node": "Telegram — отказ", "type": "main", "index": 0 }]
+      ]
+    },
+    "Форматировать идею": {
+      "main": [
+        [{ "node": "GitHub — создать файл", "type": "main", "index": 0 }]
+      ]
+    },
+    "GitHub — создать файл": {
+      "main": [
+        [{ "node": "Telegram — подтвердить", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [{ "name": "jarvis" }]
+}
