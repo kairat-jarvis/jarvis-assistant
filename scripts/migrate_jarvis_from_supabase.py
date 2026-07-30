@@ -36,6 +36,7 @@ from psycopg.types.json import Json
 
 JARVIS_PG_URL = os.getenv("JARVIS_PG_URL", "postgresql://localhost/jarvis_local")
 PAGE = 500
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 MEMORY_COLS = (
     "id", "content", "content_type", "summary", "tags", "embedding",
@@ -131,6 +132,14 @@ def upsert(conn: psycopg.Connection, table: str, cols: tuple[str, ...],
            rows: list[dict]) -> int:
     if not rows:
         return 0
+    # table/cols приходят только из констант этого модуля (MEMORY_COLS и т.п.),
+    # но проверяем формат явно — это единственное, что стоит между f-string и SQL-инъекцией
+    if not _IDENTIFIER_RE.match(table):
+        raise ValueError(f"Небезопасное имя таблицы: {table!r}")
+    for c in cols:
+        if not _IDENTIFIER_RE.match(c):
+            raise ValueError(f"Небезопасное имя колонки: {c!r}")
+
     placeholders = ",".join(["%s"] * len(cols))
     col_list = ",".join(cols)
     update_set = ",".join(f"{c}=EXCLUDED.{c}" for c in cols if c != "id")
@@ -151,9 +160,16 @@ def upsert(conn: psycopg.Connection, table: str, cols: tuple[str, ...],
                 # psycopg примет её как vector благодаря implicit cast (pgvector).
                 else:
                     values.append(v)
-            cur.execute(sql, values)
-            n += 1
-    conn.commit()
+            try:
+                cur.execute(sql, values)
+                conn.commit()
+                n += 1
+            except Exception as exc:
+                # коммитим построчно: битая строка откатывает только себя,
+                # а не уже вставленные до неё строки этой же таблицы
+                conn.rollback()
+                print(f"  [WARN] {table}: пропущена строка id={r.get('id')}: {exc}",
+                      file=sys.stderr)
     return n
 
 

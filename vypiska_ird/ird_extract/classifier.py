@@ -229,12 +229,16 @@ def classify(text: str) -> tuple[DocTypeDef, float]:
     """Возвращает (DocTypeDef, confidence 0..1)."""
     lower = text.lower()
     scores: dict[str, float] = {}
+    weights: dict[str, int] = {}
     for dt in DOC_TYPES:
         score = sum(1 for kw in dt.keywords if kw.lower() in lower)
         anti = sum(1 for ak in dt.antikeywords if ak.lower() in lower)
         scores[dt.key] = (score - anti * 0.5) * dt.weight
+        weights[dt.key] = dt.weight
 
-    best_key = max(scores, key=lambda k: scores[k])
+    # при равном score побеждает больший weight (см. DocTypeDef.weight) —
+    # без этого max() тихо брал первый по порядку в DOC_TYPES
+    best_key = max(scores, key=lambda k: (scores[k], weights[k]))
     best_score = scores[best_key]
     if best_score <= 0:
         # неизвестный документ → письмо как fallback

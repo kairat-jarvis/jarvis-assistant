@@ -90,7 +90,7 @@
       "position": [-240, 300],
       "credentials": {
         "openAiApi": {
-          "id": "K9JiW8NJnEvUzMrg",
+          "id": "REPLACE_WITH_OPENAI_CREDENTIALS_ID",
           "name": "OpenAi account"
         }
       }

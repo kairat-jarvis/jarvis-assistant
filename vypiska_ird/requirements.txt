@@ -12,3 +12,6 @@ numpy>=1.26.0
 
 # Уровень 3 — Claude Vision fallback
 anthropic>=0.40.0
+
+# Тесты (dev)
+pytest>=8.0.0
