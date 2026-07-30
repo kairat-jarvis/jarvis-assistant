@@ -1,0 +1,13 @@
+# Зависимости скриптов scripts/ (локальная память JARVIS, НТД-загрузчик, Notion-утилиты).
+# Не путать с vypiska_ird/requirements.txt — это отдельное, независимо разворачиваемое приложение.
+
+psycopg[binary]>=3.1.0
+pgvector>=0.3.0
+python-dotenv>=1.0.0
+openai>=1.40.0
+anthropic>=0.40.0
+openpyxl>=3.1.0
+
+# ntd_loader (PDF → expertise_ntd)
+pypdf>=4.0.0
+paddleocr>=3.1.0

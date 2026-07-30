@@ -215,9 +215,10 @@ class BatchTab(ttk.Frame):
                 return
             new_val = entry.get()
             self.tree.set(row_id, "Формулировка", new_val)
-            # обновить в _items
+            # обновить в _items — row_id это iid дерева, всегда равен source_file
+            # (см. _add_files: iid=str(pp), record["source_file"]=str(pdf_path))
             for item in self._items:
-                if str(item.get("source_file", "")).endswith(row_id.split("/")[-1]) or row_id == item.get("source_file"):
+                if item.get("source_file") == row_id:
                     item["formatted_text"] = new_val
                     break
             entry.destroy()

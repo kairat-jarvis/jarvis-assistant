@@ -60,6 +60,9 @@ rezult/
 # Pre-training dataset экспорты из ntd.cross_validation_labeled
 out/
 
+# Pytest
+.pytest_cache/
+
 # IDE
 .vscode/
 .idea/
